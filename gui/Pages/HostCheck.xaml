@@ -1,0 +1,93 @@
+<UserControl
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="Verify the host can stand the lab up. Click Run to invoke Test-HostPrereq + the ISO catalog scan."
+                   FontSize="13"
+                   TextWrapping="Wrap"
+                   Margin="8,8,8,8"/>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="8,4,8,8">
+            <Button x:Name="btnHostCheckRun"
+                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}"
+                    Content="Run host check"
+                    MinWidth="160"
+                    Height="32"
+                    Margin="0,0,8,0"
+                    Controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+            <TextBlock x:Name="txtHostCheckSummary"
+                       Text="Not run yet."
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+        </StackPanel>
+
+        <DataGrid x:Name="dgHostCheck"
+                  Grid.Row="2"
+                  Margin="8,0,8,0"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  IsReadOnly="True"
+                  SelectionMode="Single"
+                  SelectionUnit="FullRow"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="Horizontal"
+                  RowHeaderWidth="0"
+                  BorderThickness="0"
+                  ColumnHeaderHeight="30">
+            <DataGrid.ColumnHeaderStyle>
+                <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource MahApps.Styles.DataGridColumnHeader}">
+                    <Setter Property="Padding" Value="6,0,6,0"/>
+                    <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                </Style>
+            </DataGrid.ColumnHeaderStyle>
+            <DataGrid.CellStyle>
+                <Style TargetType="DataGridCell" BasedOn="{StaticResource MahApps.Styles.DataGridCell}">
+                    <Setter Property="Padding" Value="6,0,6,0"/>
+                </Style>
+            </DataGrid.CellStyle>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Status" Binding="{Binding Glyph}" Width="48"/>
+                <DataGridTextColumn Header="Check" Binding="{Binding Name}" Width="220"/>
+                <DataGridTextColumn Header="Detail" Binding="{Binding Message}" Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <StackPanel Grid.Row="3"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="8,12,8,8">
+            <Button x:Name="btnHostCheckBack"
+                    Style="{DynamicResource MahApps.Styles.Button.Square}"
+                    Content="Back"
+                    MinWidth="90"
+                    Height="32"
+                    Margin="0,0,8,0"
+                    Controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+            <Button x:Name="btnHostCheckNext"
+                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}"
+                    Content="Next: Topology"
+                    MinWidth="160"
+                    Height="32"
+                    Controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

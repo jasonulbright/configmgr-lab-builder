@@ -1,0 +1,73 @@
+<UserControl
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="Resolved configuration. Review before deploying; the Deploy button hands off to Install-HomeLab in a background runspace."
+                   FontSize="13"
+                   TextWrapping="Wrap"
+                   Margin="8,8,8,8"/>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="8,0,8,0">
+                <TextBlock Text="Topology" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <TextBox x:Name="txtReviewTopology"
+                         IsReadOnly="True"
+                         FontFamily="Cascadia Code, Consolas, Courier New"
+                         FontSize="11"
+                         BorderThickness="0"
+                         Margin="0,0,0,12"
+                         TextWrapping="NoWrap"
+                         HorizontalScrollBarVisibility="Auto"
+                         AcceptsReturn="True"/>
+
+                <TextBlock Text="Post-CM Customizations" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <TextBox x:Name="txtReviewPostCm"
+                         IsReadOnly="True"
+                         FontFamily="Cascadia Code, Consolas, Courier New"
+                         FontSize="11"
+                         BorderThickness="0"
+                         Margin="0,0,0,12"
+                         TextWrapping="NoWrap"
+                         HorizontalScrollBarVisibility="Auto"
+                         AcceptsReturn="True"/>
+
+                <TextBlock Text="Deploy plan" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <TextBox x:Name="txtReviewPlan"
+                         IsReadOnly="True"
+                         FontFamily="Cascadia Code, Consolas, Courier New"
+                         FontSize="11"
+                         BorderThickness="0"
+                         TextWrapping="Wrap"
+                         AcceptsReturn="True"
+                         Text="Phases that will run, in order: 01-Prereq, 02-Network, 03-Image, 04-VM, 05-Domain, 07-CMPrereqs, 06-Sql, 08-CM, 09-CMConfig, 10-Tools, 11-PostCM."/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="8,12,8,8">
+            <Button x:Name="btnReviewBack"
+                    Style="{DynamicResource MahApps.Styles.Button.Square}"
+                    Content="Back"
+                    MinWidth="90"
+                    Height="32"
+                    Margin="0,0,8,0"
+                    Controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+            <Button x:Name="btnReviewDeploy"
+                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}"
+                    Content="Deploy"
+                    MinWidth="160"
+                    Height="32"
+                    Controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

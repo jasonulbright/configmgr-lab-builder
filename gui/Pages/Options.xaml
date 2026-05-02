@@ -1,0 +1,263 @@
+<UserControl
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro">
+    <UserControl.Resources>
+        <Style x:Key="LinkButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="FocusBorder"
+                                BorderBrush="Transparent"
+                                BorderThickness="1"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="FocusBorder"
+                                        Property="BorderBrush"
+                                        Value="{DynamicResource MahApps.Brushes.Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <ListBox x:Name="lbOptionsCategories"
+                 Grid.Column="0"
+                 BorderThickness="0"
+                 Margin="0,8,0,0">
+            <ListBoxItem Content="Paths" IsSelected="True"/>
+            <ListBoxItem Content="Logging"/>
+            <ListBoxItem Content="Defaults"/>
+            <ListBoxItem Content="About"/>
+        </ListBox>
+
+        <Border Grid.Column="1"
+                BorderThickness="1,0,0,0"
+                BorderBrush="{DynamicResource MahApps.Brushes.Gray8}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <Grid x:Name="pnlOptionsContent" Margin="16,8,16,8">
+
+                    <!-- Paths panel (default visible). -->
+                    <StackPanel x:Name="pnlOptionsPaths">
+                        <TextBlock Text="Paths"
+                                   FontSize="14" FontWeight="SemiBold"
+                                   Margin="0,4,0,8"/>
+
+                        <TextBlock Text="LabSourcesRoot"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Margin="0,8,0,2"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="txtLabSourcesRoot"
+                                     Grid.Column="0"
+                                     Text="C:\LabSources"
+                                     FontFamily="Cascadia Code, Consolas, Courier New"
+                                     FontSize="11"
+                                     AutomationProperties.Name="LabSourcesRoot path"/>
+                            <Button x:Name="btnBrowseLabSources"
+                                    Grid.Column="1"
+                                    Style="{DynamicResource MahApps.Styles.Button.Square}"
+                                    Content="Browse..."
+                                    MinWidth="90"
+                                    Margin="6,0,0,0"
+                                    Controls:ControlsHelper.ContentCharacterCasing="Normal"
+                                    AutomationProperties.Name="Browse for LabSourcesRoot folder"/>
+                        </Grid>
+
+                        <TextBlock Text="LabImagePath"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Margin="0,12,0,2"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="txtLabImagePath"
+                                     Grid.Column="0"
+                                     Text="C:\LabImages"
+                                     FontFamily="Cascadia Code, Consolas, Courier New"
+                                     FontSize="11"
+                                     AutomationProperties.Name="LabImagePath path"/>
+                            <Button x:Name="btnBrowseLabImages"
+                                    Grid.Column="1"
+                                    Style="{DynamicResource MahApps.Styles.Button.Square}"
+                                    Content="Browse..."
+                                    MinWidth="90"
+                                    Margin="6,0,0,0"
+                                    Controls:ControlsHelper.ContentCharacterCasing="Normal"
+                                    AutomationProperties.Name="Browse for LabImagePath folder"/>
+                        </Grid>
+
+                        <TextBlock Text="ParallelThrottle"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Margin="0,12,0,2"/>
+                        <TextBlock Text="Maximum concurrent VM provisioning + domain join (1..16). Default 3."
+                                   FontSize="11"
+                                   Foreground="{DynamicResource MahApps.Brushes.Gray1}"
+                                   Margin="0,0,0,4"/>
+                        <TextBox x:Name="txtParallelThrottle"
+                                 Text="3"
+                                 FontFamily="Cascadia Code, Consolas, Courier New"
+                                 FontSize="11"
+                                 Width="80"
+                                 HorizontalAlignment="Left"
+                                 AutomationProperties.Name="ParallelThrottle"/>
+                    </StackPanel>
+
+                    <!-- Logging panel. -->
+                    <StackPanel x:Name="pnlOptionsLogging" Visibility="Collapsed">
+                        <TextBlock Text="Logging"
+                                   FontSize="14" FontWeight="SemiBold"
+                                   Margin="0,4,0,8"/>
+
+                        <TextBlock Text="Verbosity"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Margin="0,8,0,2"/>
+                        <TextBlock Text="Quiet shows only warnings and errors. Normal hides verbose noise. Verbose shows everything in the log drawer (the file log always captures everything regardless of this setting)."
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource MahApps.Brushes.Gray1}"
+                                   Margin="0,0,0,4"/>
+                        <ComboBox x:Name="cmbLogVerbosity"
+                                  Width="160"
+                                  HorizontalAlignment="Left"
+                                  AutomationProperties.Name="Log drawer verbosity">
+                            <ComboBoxItem Content="Quiet"/>
+                            <ComboBoxItem Content="Normal"/>
+                            <ComboBoxItem Content="Verbose"/>
+                        </ComboBox>
+
+                        <CheckBox x:Name="chkShowTimestamps"
+                                  Content="Show timestamps in the log drawer"
+                                  Margin="0,12,0,0"/>
+
+                        <Separator Margin="0,16,0,12" Background="{DynamicResource MahApps.Brushes.Gray8}"/>
+
+                        <TextBlock Text="GUI log (this session)"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Margin="0,4,0,2"/>
+                        <TextBox x:Name="txtLogGui"
+                                 IsReadOnly="True"
+                                 FontFamily="Cascadia Code, Consolas, Courier New"
+                                 FontSize="11"
+                                 BorderThickness="0"/>
+
+                        <TextBlock Text="Engine log (text)"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Margin="0,12,0,2"/>
+                        <TextBox x:Name="txtLogEngineText"
+                                 IsReadOnly="True"
+                                 Text="C:\ProgramData\HomeLab\Logs\HomeLab-&lt;yyyy-MM-dd&gt;.log"
+                                 FontFamily="Cascadia Code, Consolas, Courier New"
+                                 FontSize="11"
+                                 BorderThickness="0"/>
+
+                        <TextBlock Text="Engine log (structured JSON)"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Margin="0,12,0,2"/>
+                        <TextBox x:Name="txtLogEngineJson"
+                                 IsReadOnly="True"
+                                 Text="C:\ProgramData\HomeLab\Logs\HomeLab-&lt;yyyy-MM-dd&gt;.log.json"
+                                 FontFamily="Cascadia Code, Consolas, Courier New"
+                                 FontSize="11"
+                                 BorderThickness="0"/>
+                    </StackPanel>
+
+                    <!-- Defaults panel. -->
+                    <StackPanel x:Name="pnlOptionsDefaults" Visibility="Collapsed">
+                        <TextBlock Text="Defaults"
+                                   FontSize="14" FontWeight="SemiBold"
+                                   Margin="0,4,0,8"/>
+
+                        <TextBlock Text="Default Post-CM Customizations"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Margin="0,4,0,4"/>
+                        <TextBlock Text="Pre-checked on the Post-CM page. Each is still toggleable per deploy. Persisted to gui/Settings/options.json."
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource MahApps.Brushes.Gray1}"
+                                   Margin="0,0,0,8"/>
+
+                        <CheckBox x:Name="chkDefCollWorkstations" Content="All Workstations collection"               Margin="0,2,0,2"/>
+                        <CheckBox x:Name="chkDefCollServers"      Content="All Servers collection"                    Margin="0,2,0,2"/>
+                        <CheckBox x:Name="chkDefCollTestDirect"   Content="HomeLab - Test Deployments collection"     Margin="0,2,0,2"/>
+                        <CheckBox x:Name="chkDefMwSaturday"       Content="Patch Saturday maintenance window"         Margin="0,2,0,2"/>
+                        <CheckBox x:Name="chkDefMwTestDaily"      Content="Daily test maintenance window"             Margin="0,2,0,2"/>
+                        <CheckBox x:Name="chkDefOsdBoot"          Content="Add WinPE boot image"                      Margin="0,2,0,2"/>
+                        <CheckBox x:Name="chkDefOsdTs"            Content="Create 'Build Win11' task sequence stub"   Margin="0,2,0,2"/>
+                    </StackPanel>
+
+                    <!-- About panel. -->
+                    <StackPanel x:Name="pnlOptionsAbout" Visibility="Collapsed">
+                        <TextBlock Text="About"
+                                   FontSize="14" FontWeight="SemiBold"
+                                   Margin="0,4,0,8"/>
+                        <TextBlock x:Name="txtAboutVersion"
+                                   Text="MECM HomeLab v1.0.0 GUI"
+                                   FontSize="12"
+                                   Margin="0,0,0,2"/>
+                        <Button x:Name="btnGitHub"
+                                Style="{StaticResource LinkButtonStyle}"
+                                Margin="0,0,0,8"
+                                AutomationProperties.Name="Open GitHub project page in browser">
+                            <TextBlock Text="github.com/jasonulbright/mecm-homelab"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource MahApps.Brushes.Accent}"
+                                       TextDecorations="Underline"/>
+                        </Button>
+                        <TextBlock TextWrapping="Wrap"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource MahApps.Brushes.Gray1}">
+                            Built on PowerShell 7.6 LTS (.NET 10) + WPF + MahApps.Metro. The GUI is a thin wizard on the same Install-HomeLab cmdlet you can run from the shell.
+                        </TextBlock>
+
+                        <Separator Margin="0,16,0,12" Background="{DynamicResource MahApps.Brushes.Gray8}"/>
+
+                        <TextBlock Text="Settings file"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Margin="0,4,0,2"/>
+                        <Button x:Name="btnAboutSettingsPath"
+                                Style="{StaticResource LinkButtonStyle}"
+                                AutomationProperties.Name="Open settings file location in Explorer">
+                            <TextBlock x:Name="txtAboutSettingsPath"
+                                       Text="(settings path)"
+                                       FontSize="11"
+                                       FontFamily="Cascadia Code, Consolas, Courier New"
+                                       TextWrapping="NoWrap"
+                                       Foreground="{DynamicResource MahApps.Brushes.Accent}"
+                                       TextDecorations="Underline"/>
+                        </Button>
+                    </StackPanel>
+
+                </Grid>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>
