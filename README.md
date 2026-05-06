@@ -476,5 +476,5 @@ mecm-homelab/
                 10-Tools/               # Copy-CMTools, Set-LabAutoStartStop
                 11-PostCM/              # Collections, MWs, boot image, OS image, TS stub, applications
     templates/                          # Six built-in topology templates
-    tools/                              # Standalone helpers (Watch-Deploy, etc.)
+    tools/                              # Standalone helpers (Watch-Deploy, Deploy-AllApps, etc.)
 ```
