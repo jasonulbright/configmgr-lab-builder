@@ -1,0 +1,43 @@
+<UserControl
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="8,8,8,8">
+            <TextBlock Text="Welcome to the MECM HomeLab"
+                       FontSize="20" FontWeight="SemiBold"
+                       Margin="0,0,0,8"/>
+            <TextBlock TextWrapping="Wrap" FontSize="13"
+                       Margin="0,0,0,8"
+                       xml:space="preserve"><Run>The HomeLab GUI is a thin wizard on top of the same </Run><Run FontFamily="Cascadia Code, Consolas, Courier New">Install-HomeLab</Run><Run> cmdlet you can run from the shell. The 1-liner stays primary; the GUI is additive.</Run></TextBlock>
+
+            <TextBlock Text="Workflow"
+                       FontSize="13" FontWeight="SemiBold"
+                       Margin="0,12,0,4"/>
+            <TextBlock TextWrapping="Wrap" FontSize="12">
+                <Run>1. Pick a template (default / split-sql / role-per-server / aio / cas-2-dps / cas-role-per-server) or load a custom config.psd1.</Run>
+                <LineBreak/>
+                <Run>2. Run a host pre-check (Hyper-V feature, RAM, free disk, virt extensions, ISO catalog).</Run>
+                <LineBreak/>
+                <Run>3. Customise the topology (per-VM CPU / memory / role assignment).</Run>
+                <LineBreak/>
+                <Run>4. Configure post-CM customizations (collections, MWs, deployments, drivers).</Run>
+                <LineBreak/>
+                <Run>5. Review the resolved config + deploy plan.</Run>
+                <LineBreak/>
+                <Run>6. Watch the deploy live in the log drawer.</Run>
+            </TextBlock>
+
+            <TextBlock Text="Notes"
+                       FontSize="13" FontWeight="SemiBold"
+                       Margin="0,16,0,4"/>
+            <TextBlock TextWrapping="Wrap" FontSize="12">
+                <Run>* The GUI calls into the same engine as the cmdlet. There is no separate "GUI logic" -- every action you take here translates to an Install-HomeLab parameter set.</Run>
+                <LineBreak/>
+                <Run>* The bare-metal-build rule applies: there are no backup / preserve / migrate buttons. Recovery is a re-run.</Run>
+                <LineBreak/>
+                <Run>* Long phases (CM 2509 setup, SQL install) run in a background runspace; the spinner overlay reflects engine progress.</Run>
+            </TextBlock>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,125 @@
+<UserControl
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="Pick a built-in topology template, or load a custom config.psd1."
+                   FontSize="13"
+                   TextWrapping="Wrap"
+                   Margin="8,8,8,12"/>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="pnlTemplates" Margin="8,0,8,0">
+
+                <RadioButton x:Name="rbDefault" GroupName="Template" IsChecked="True" Margin="0,4,0,4">
+                    <StackPanel>
+                        <TextBlock Text="default" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock FontSize="11" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource MahApps.Brushes.Gray1}">
+                            3-VM lab. DC + CM (all roles co-located) + Client. Smallest fully-functional layout. Full engine support.
+                        </TextBlock>
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton x:Name="rbSplitSql" GroupName="Template" Margin="0,4,0,4">
+                    <StackPanel>
+                        <TextBlock Text="split-sql" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock FontSize="11" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource MahApps.Brushes.Gray1}">
+                            4-VM lab. Dedicated SQL VM. CM site DB lives on SQL01. Full engine support.
+                        </TextBlock>
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton x:Name="rbRolePerServer" GroupName="Template" Margin="0,4,0,4">
+                    <StackPanel>
+                        <TextBlock Text="role-per-server" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock FontSize="11" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource MahApps.Brushes.Gray1}">
+                            7-VM lab. DC + SQL + CM + MP + DP + SUP + Client. MP / DP supported via S15 helpers; SUP currently falls back to the site server.
+                        </TextBlock>
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton x:Name="rbAio" GroupName="Template" Margin="0,4,0,4">
+                    <StackPanel>
+                        <TextBlock Text="aio" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock FontSize="11" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource MahApps.Brushes.Gray1}">
+                            2-VM lab. DC + CM bundle co-located on LAB01. Schema-only: CM 2509 setup rejects DC-co-resident installs.
+                        </TextBlock>
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton x:Name="rbCas2Dps" GroupName="Template" Margin="0,4,0,4">
+                    <StackPanel>
+                        <TextBlock Text="cas-2-dps" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock FontSize="11" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource MahApps.Brushes.Gray1}">
+                            CAS hierarchy + 2 regional DPs (6 VMs). Schema-only: CAS install path deferred.
+                        </TextBlock>
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton x:Name="rbCasRolePerServer" GroupName="Template" Margin="0,4,0,4">
+                    <StackPanel>
+                        <TextBlock Text="cas-role-per-server" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock FontSize="11" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource MahApps.Brushes.Gray1}">
+                            Full enterprise mirror (9 VMs): CAS + dedicated SQL + child primary + MP + multi-DP + SUP. Schema-only: CAS deferred.
+                        </TextBlock>
+                    </StackPanel>
+                </RadioButton>
+
+                <Separator Margin="0,12,0,12" Background="{DynamicResource MahApps.Brushes.Gray8}"/>
+
+                <RadioButton x:Name="rbCustom" GroupName="Template" Margin="0,4,0,4">
+                    <StackPanel>
+                        <TextBlock Text="custom config.psd1" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock FontSize="11" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource MahApps.Brushes.Gray1}">
+                            Load a config.psd1 from disk. Same schema as the templates.
+                        </TextBlock>
+                    </StackPanel>
+                </RadioButton>
+
+                <Grid Margin="24,4,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="txtCustomPath"
+                             Grid.Column="0"
+                             FontFamily="Cascadia Code, Consolas, Courier New"
+                             FontSize="11"/>
+                    <Button x:Name="btnBrowseCustom"
+                            Grid.Column="1"
+                            Style="{DynamicResource MahApps.Styles.Button.Square}"
+                            Content="Browse..."
+                            MinWidth="90"
+                            Margin="6,0,0,0"
+                            Controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="8,12,8,8">
+            <Button x:Name="btnTemplateNext"
+                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}"
+                    Content="Next: Host check"
+                    MinWidth="180"
+                    Height="32"
+                    Controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

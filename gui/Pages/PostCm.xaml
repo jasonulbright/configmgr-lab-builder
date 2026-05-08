@@ -1,0 +1,159 @@
+<UserControl
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="Optional day-2 customizations applied after the site is healthy. Each section is independent; uncheck to skip."
+                   FontSize="13"
+                   TextWrapping="Wrap"
+                   Margin="8,8,8,8"/>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="8,0,8,0">
+
+                <Expander Header="Collections"
+                          IsExpanded="True"
+                          Margin="0,4,0,4">
+                    <StackPanel Margin="12,8,0,4">
+                        <CheckBox x:Name="chkCollWorkstations" IsChecked="True" Margin="0,2,0,2">
+                            <TextBlock>
+                                <Run Text="All Workstations" FontWeight="SemiBold"/>
+                                <LineBreak/>
+                                <Run FontSize="11" Foreground="{DynamicResource MahApps.Brushes.Gray1}">Query: workstation OS family</Run>
+                            </TextBlock>
+                        </CheckBox>
+                        <CheckBox x:Name="chkCollServers" IsChecked="True" Margin="0,2,0,2">
+                            <TextBlock>
+                                <Run Text="All Servers" FontWeight="SemiBold"/>
+                                <LineBreak/>
+                                <Run FontSize="11" Foreground="{DynamicResource MahApps.Brushes.Gray1}">Query: server OS family</Run>
+                            </TextBlock>
+                        </CheckBox>
+                        <CheckBox x:Name="chkCollTestDirect" IsChecked="True" Margin="0,2,0,2">
+                            <TextBlock>
+                                <Run Text="HomeLab - Test Deployments" FontWeight="SemiBold"/>
+                                <LineBreak/>
+                                <Run FontSize="11" Foreground="{DynamicResource MahApps.Brushes.Gray1}">Direct membership: CLIENT01 (or first Client VM)</Run>
+                            </TextBlock>
+                        </CheckBox>
+                    </StackPanel>
+                </Expander>
+
+                <Expander Header="Maintenance windows"
+                          IsExpanded="True"
+                          Margin="0,4,0,4">
+                    <StackPanel Margin="12,8,0,4">
+                        <CheckBox x:Name="chkMwSaturday" IsChecked="True" Margin="0,2,0,2">
+                            <TextBlock>
+                                <Run Text="Patch Saturday 02:00-06:00" FontWeight="SemiBold"/>
+                                <LineBreak/>
+                                <Run FontSize="11" Foreground="{DynamicResource MahApps.Brushes.Gray1}">Weekly, SoftwareUpdates only, on All Workstations</Run>
+                            </TextBlock>
+                        </CheckBox>
+                        <CheckBox x:Name="chkMwTestDaily" IsChecked="True" Margin="0,2,0,2">
+                            <TextBlock>
+                                <Run Text="Daily 00:00-06:00" FontWeight="SemiBold"/>
+                                <LineBreak/>
+                                <Run FontSize="11" Foreground="{DynamicResource MahApps.Brushes.Gray1}">Daily, Any, on HomeLab - Test Deployments</Run>
+                            </TextBlock>
+                        </CheckBox>
+                    </StackPanel>
+                </Expander>
+
+                <Expander Header="Driver categories"
+                          IsExpanded="False"
+                          Margin="0,4,0,4">
+                    <StackPanel Margin="12,8,0,4">
+                        <TextBlock FontSize="11"
+                                   Foreground="{DynamicResource MahApps.Brushes.Gray1}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,4">
+                            Add per-model driver categories used by OSD task sequences. Comma-separated list of Vendor-Model pairs.
+                        </TextBlock>
+                        <TextBox x:Name="txtDriverCategories"
+                                 FontFamily="Cascadia Code, Consolas, Courier New"
+                                 FontSize="11"/>
+                    </StackPanel>
+                </Expander>
+
+                <Expander Header="Applications (app-packager import)"
+                          IsExpanded="False"
+                          Margin="0,4,0,4">
+                    <StackPanel Margin="12,8,0,4">
+                        <TextBlock FontSize="11"
+                                   Foreground="{DynamicResource MahApps.Brushes.Gray1}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,4">
+                            Path to an app-packager output folder. Each subfolder with a stage-manifest.json becomes a CM Application + Script DT + registry detection rule.
+                        </TextBlock>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="txtAppPackagerRoot"
+                                     Grid.Column="0"
+                                     FontFamily="Cascadia Code, Consolas, Courier New"
+                                     FontSize="11"/>
+                            <Button x:Name="btnBrowseAppPackager"
+                                    Grid.Column="1"
+                                    Style="{DynamicResource MahApps.Styles.Button.Square}"
+                                    Content="Browse..."
+                                    MinWidth="90"
+                                    Margin="6,0,0,0"
+                                    Controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                        </Grid>
+                    </StackPanel>
+                </Expander>
+
+                <Expander Header="OSD (boot image + task sequence stub)"
+                          IsExpanded="False"
+                          Margin="0,4,0,4">
+                    <StackPanel Margin="12,8,0,4">
+                        <CheckBox x:Name="chkOsdBoot" IsChecked="False" Margin="0,2,0,2">
+                            <TextBlock>
+                                <Run Text="Add WinPE boot image" FontWeight="SemiBold"/>
+                                <LineBreak/>
+                                <Run FontSize="11" Foreground="{DynamicResource MahApps.Brushes.Gray1}">From the ADK offline layout pushed in Phase 07-CMPrereqs</Run>
+                            </TextBlock>
+                        </CheckBox>
+                        <CheckBox x:Name="chkOsdTs" IsChecked="False" Margin="0,2,0,2">
+                            <TextBlock>
+                                <Run Text="Create 'Build Win11' TS stub" FontWeight="SemiBold"/>
+                                <LineBreak/>
+                                <Run FontSize="11" Foreground="{DynamicResource MahApps.Brushes.Gray1}">Mounts the Win11 ISO, stages install.wim to ContentShare\OSD, imports + distributes, then builds the InstallOperatingSystemImage TS</Run>
+                            </TextBlock>
+                        </CheckBox>
+                    </StackPanel>
+                </Expander>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="8,12,8,8">
+            <Button x:Name="btnPostCmBack"
+                    Style="{DynamicResource MahApps.Styles.Button.Square}"
+                    Content="Back"
+                    MinWidth="90"
+                    Height="32"
+                    Margin="0,0,8,0"
+                    Controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+            <Button x:Name="btnPostCmNext"
+                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}"
+                    Content="Next: Review"
+                    MinWidth="160"
+                    Height="32"
+                    Controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+        </StackPanel>
+    </Grid>
+</UserControl>
