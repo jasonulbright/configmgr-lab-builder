@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.0.0.1] - 2026-06-09
+
+### Fixed
+
+- **Non-interactive deploy crash.** `Install-HomeLab` (and the lab-wide
+  resolver in `Get-LabCredential`) tried to predict whether the host could
+  prompt for a password using `$Host.UI.RawUI`. On non-interactive hosts
+  (scriptblock / `Start-Job` / remoting / CI) `RawUI` is non-null yet the
+  host cannot prompt, so `Read-Host` threw a cryptic "host program does not
+  support user interaction" error mid-deploy. The prompt is now attempted
+  only when stdin is not redirected, and wrapped so a host that cannot
+  prompt surfaces the actionable "lab password is required" message instead
+  of a raw host exception.
+- **Default lab passwords restored in `config.psd1`.** The published
+  default password (`AdminPass` and the three service-account passwords)
+  was missing, forcing a password prompt on a default deploy. Restored so a
+  no-argument deploy runs without interaction, matching the documented
+  "default passwords are published in source control" contract.
+
 ## [1.0.0] - 2026-05-02
 
 MECM HomeLab is a native PowerShell + Hyper-V engine that builds a

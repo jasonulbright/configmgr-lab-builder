@@ -245,18 +245,25 @@ function Install-HomeLab {
     #   2. $cfg.AdminPass already in the .psd1 (legacy / explicit override)
     #   3. $env:HOMELAB_PASSWORD environment variable
     #   4. Interactive Read-Host -AsSecureString
-    # The Read-Host fallback is gated on a real interactive console;
-    # otherwise (Pester / Start-Job / CI runners) we throw so unit tests
-    # don't hang on a prompt the runner can never satisfy. Mirrors the
-    # detection in Get-LabCredential.ps1.
+    # The Read-Host fallback only runs when stdin is not redirected. Even
+    # then, some hosts (non-interactive PSHost, scriptblock / Start-Job /
+    # remoting / CI runners) have a non-null $Host.UI.RawUI yet still cannot
+    # prompt -- Read-Host throws a cryptic "host does not support user
+    # interaction" error. We catch that and rethrow the actionable message
+    # below so the user learns how to supply the password instead of seeing
+    # a raw host exception. Mirrors the handling in Get-LabCredential.ps1.
     if ($LabPassword) {
         $plain = [System.Net.NetworkCredential]::new('', $LabPassword).Password
     } elseif ($cfg.AdminPass) {
         $plain = [string]$cfg.AdminPass
     } elseif ($env:HOMELAB_PASSWORD) {
         $plain = [string]$env:HOMELAB_PASSWORD
-    } elseif ($Host.UI.RawUI -and -not [Console]::IsInputRedirected) {
-        $secured = Read-Host -Prompt 'Enter lab password (used for Administrator + all service accounts)' -AsSecureString
+    } elseif (-not [Console]::IsInputRedirected) {
+        try {
+            $secured = Read-Host -Prompt 'Enter lab password (used for Administrator + all service accounts)' -AsSecureString
+        } catch {
+            throw "Install-HomeLab: lab password is required (pass -LabPassword, set `$cfg.AdminPass, set `$env:HOMELAB_PASSWORD, or run from an interactive console)"
+        }
         $plain = [System.Net.NetworkCredential]::new('', $secured).Password
         if ([string]::IsNullOrEmpty($plain)) { throw "Install-HomeLab: lab password is required" }
     } else {

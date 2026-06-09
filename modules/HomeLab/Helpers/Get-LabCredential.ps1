@@ -105,8 +105,16 @@ function Get-LabCredential {
             $plain = $env:HOMELAB_PASSWORD
         } elseif ($script:LabPasswordCache) {
             $plain = $script:LabPasswordCache
-        } elseif ($Host.UI.RawUI -and -not [Console]::IsInputRedirected) {
-            $sec = Read-Host -Prompt 'Lab password (one password covers all 4 accounts)' -AsSecureString
+        } elseif (-not [Console]::IsInputRedirected) {
+            # A non-null $Host.UI.RawUI does not guarantee the host can
+            # prompt (non-interactive PSHost, scriptblock / job / remoting
+            # / CI). Attempt the prompt and convert the host's "cannot
+            # prompt" exception into the actionable message below.
+            try {
+                $sec = Read-Host -Prompt 'Lab password (one password covers all 4 accounts)' -AsSecureString
+            } catch {
+                throw "Get-LabCredential: '$Identity' has no Password and no lab-wide password available (-LabPassword, `$cfg.AdminPass, `$env:HOMELAB_PASSWORD all empty; non-interactive session)"
+            }
             $plain = [System.Net.NetworkCredential]::new('', $sec).Password
         } else {
             throw "Get-LabCredential: '$Identity' has no Password and no lab-wide password available (-LabPassword, `$cfg.AdminPass, `$env:HOMELAB_PASSWORD all empty; non-interactive session)"

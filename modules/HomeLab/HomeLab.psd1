@@ -1,6 +1,7 @@
 @{
     RootModule        = 'HomeLab.psm1'
-    ModuleVersion     = '1.0.0'
+    ModuleVersion     = '1.0.0.1'
+    # 1.0.0.1: fix non-interactive deploy crash; restore default lab passwords.
     # 1.0.0: initial public release. Native PowerShell + Hyper-V engine.
     GUID              = 'a8f4c2d1-9b6e-4a73-8c5f-2e1d0a7b4e96'
     Author            = 'jasonulbright'
@@ -27,7 +28,7 @@
         PSData = @{
             Tags         = @('MECM','ConfigMgr','HyperV','Lab','HomeLab')
             ProjectUri   = 'https://github.com/jasonulbright/mecm-homelab'
-            ReleaseNotes = 'v1.0.0 initial public release. See CHANGELOG.md.'
+            ReleaseNotes = 'v1.0.0.1 fixes a non-interactive deploy crash and restores the default lab passwords. See CHANGELOG.md.'
         }
     }
 }

@@ -9,6 +9,7 @@
     # Default passwords are published in source control. Treat this lab as
     # internet-facing even if it is not -- change every password below.
     AdminUser      = 'LabAdmin'
+    AdminPass      = 'P@ssw0rd!'
 
     # OS filters -- matched against Get-LabAvailableOperatingSystem from your ISOs.
     # Wildcard patterns. The highest-version match wins.
@@ -57,16 +58,19 @@
     ServiceAccounts = @{
         ClientPush = @{
             Name     = 'svc-CMPush'
+            Password = 'P@ssw0rd!'
             Desc     = 'MECM Client Push Installation Account'
             Group    = 'Domain Admins'  # Needs local admin on all targets
         }
         NAA = @{
             Name     = 'svc-CMNAA'
+            Password = 'P@ssw0rd!'
             Desc     = 'MECM Network Access Account'
             Group    = $null  # Domain Users only -- least privilege
         }
         Join = @{
             Name     = 'svc-CMJoin'
+            Password = 'P@ssw0rd!'
             Desc     = 'MECM OSD task sequence domain-join account'
             Group    = 'Domain Admins'  # Also added to Remote Desktop Users
         }
