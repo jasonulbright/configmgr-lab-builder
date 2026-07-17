@@ -88,7 +88,18 @@ function Install-LabDC {
         [string]$DomainMode = 'WinThreshold',
 
         [Parameter()]
-        [int]$PostRebootTimeoutSeconds = 1800
+        [int]$PostRebootTimeoutSeconds = 1800,
+
+        # External DNS forwarders for the new AD DNS server. Without these,
+        # the DC resolves internet names via root hints, which only succeed
+        # if the DC itself can reach the public internet through its NAT NIC
+        # (Hyper-V 'Default Switch'). Because every lab VM points its DNS at
+        # the DC, a DC that can't get out takes the whole lab's external
+        # name resolution down with it -- even when the other VMs' NAT NICs
+        # are healthy. Setting forwarders decouples lab DNS from the
+        # reboot-fragile Default Switch. Pass an empty array to skip.
+        [Parameter()]
+        [string[]]$DnsForwarders = @('1.1.1.1','8.8.8.8')
     )
 
     if (-not $NetBIOSName) {
@@ -221,6 +232,28 @@ function Install-LabDC {
     }
 
     Write-LabLog "[$ComputerName] DC ready; forest $DomainName online" -Status OK
+
+    # 5. DNS forwarders. Decouple lab internet name resolution from the
+    # DC's own root-hints-over-Default-Switch path. Idempotent: setting
+    # forwarders replaces the list, so a re-run converges. Fail-soft --
+    # a forwarder misconfig should not fail an otherwise-good promotion;
+    # WARN and continue.
+    if ($DnsForwarders -and $DnsForwarders.Count -gt 0) {
+        try {
+            Invoke-LabCommand -ComputerName $ComputerName -Credential $LocalCredential `
+                -Activity "Set DNS forwarders ($($DnsForwarders -join ', '))" -ScriptBlock {
+                    param($Forwarders)
+                    Set-DnsServerForwarder -IPAddress $Forwarders -UseRootHint $true -ErrorAction Stop
+                    # Surface the resulting config so the caller can log it.
+                    (Get-DnsServerForwarder).IPAddress.IPAddressToString -join ', '
+                } -ArgumentList (,$DnsForwarders) | ForEach-Object {
+                    Write-LabLog "[$ComputerName] DNS forwarders set: $_" -Status OK
+                }
+        } catch {
+            Write-LabLog "[$ComputerName] Set-DnsServerForwarder failed (lab DNS will fall back to root hints): $($_.Exception.Message.Split([char]10)[0])" -Status WARN
+        }
+    }
+
     return [pscustomobject]@{
         Status     = 'Ready'
         DomainName = $DomainName

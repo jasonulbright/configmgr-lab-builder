@@ -6,6 +6,7 @@
 
 BeforeAll {
     $script:moduleRoot = Resolve-Path "$PSScriptRoot\..\..\modules\HomeLab"
+    $script:repoRoot = Resolve-Path "$PSScriptRoot\..\.."
     $script:manifestPath = Join-Path $script:moduleRoot 'HomeLab.psd1'
     Get-Module HomeLab | Remove-Module -Force -ErrorAction SilentlyContinue
 }
@@ -20,9 +21,17 @@ Describe 'HomeLab module manifest' {
         { Test-ModuleManifest -Path $script:manifestPath } | Should -Not -Throw
     }
 
-    It 'manifest version is 2.0.0' {
+    It 'manifest version matches the latest CHANGELOG release' {
+        # Keep the assertion tied to the changelog instead of a literal
+        # so a version bump can't leave this test stale again (it sat
+        # asserting 2.0.0 long after the repo renumbered to 1.0.0).
+        $changelog = Get-Content (Join-Path $script:repoRoot 'CHANGELOG.md') -Raw
+        if ($changelog -notmatch '## \[(\d+(?:\.\d+){1,3})\]') {
+            throw 'CHANGELOG.md has no ## [x.y.z] release heading'
+        }
+        $latest = $Matches[1]
         $m = Test-ModuleManifest -Path $script:manifestPath
-        $m.Version.ToString() | Should -Be '2.0.0'
+        $m.Version.ToString() | Should -Be $latest
     }
 
     It 'manifest declares PowerShell 7.6 LTS minimum' {

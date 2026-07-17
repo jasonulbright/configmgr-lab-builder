@@ -220,4 +220,22 @@ Describe 'Set-LabDefenderExclusions' {
         $script:capturedPaths | Should -Contain 'D:\Extra1'
         $script:capturedPaths | Should -Contain 'E:\Extra2'
     }
+
+    It 'passes no null element when -ExtraPaths is omitted' {
+        # Regression: @($defaultPaths) + @($ExtraPaths) with $null
+        # ExtraPaths appended a literal $null, which made the remote
+        # Add-MpPreference reject the entire array (first real-host run,
+        # 2026-07-16).
+        $script:capturedPaths2 = $null
+        Mock Invoke-LabCommand -MockWith {
+            param($ComputerName, $Credential, $ScriptBlock, $ArgumentList, $Activity)
+            $script:capturedPaths2 = $ArgumentList[0]
+            return [pscustomobject]@{ Applied = $ArgumentList[0].Count; Skipped = 0 }
+        }
+        Set-LabDefenderExclusions -ComputerName CM01 -DomainCredential (New-FakeCred) | Out-Null
+
+        $script:capturedPaths2 | Should -Not -Contain $null
+        @($script:capturedPaths2 | Where-Object { [string]::IsNullOrEmpty($_) }).Count | Should -Be 0
+        $script:capturedPaths2.Count | Should -BeGreaterThan 10
+    }
 }

@@ -37,7 +37,11 @@ function New-LabSwitch {
         New-LabSwitch -Name 'HomeLab-Network'
     #>
     [CmdletBinding()]
-    [OutputType([Microsoft.HyperV.PowerShell.VMSwitch])]
+    # String form, not a type literal: attribute type literals resolve at
+    # first invocation and do NOT auto-load the Hyper-V module, so on a
+    # fresh session [Microsoft.HyperV.PowerShell.VMSwitch] throws
+    # "Unable to find type" before the function body ever runs.
+    [OutputType('Microsoft.HyperV.PowerShell.VMSwitch')]
     param(
         [Parameter(Mandatory, Position = 0)]
         [ValidateNotNullOrEmpty()]
@@ -59,6 +63,20 @@ function New-LabSwitch {
     $existing = Get-VMSwitch -Name $Name -ErrorAction SilentlyContinue
     if ($existing) {
         Write-LabLog "Switch '$Name' already present (id $($existing.Id))" -Status SKIP
+        # Stamp the Notes marker on pre-existing switches (e.g. created
+        # by hand or by an older engine version). Remove-HomeLab and
+        # tools/Audit-HomeLabArtifacts.ps1 use this marker to recognize
+        # lab switches even after a LabName rename; a switch without it
+        # can only be found by its current name. Observed on the real
+        # host 2026-07-16: HomeLab-Network existed with empty Notes.
+        if ($NotesText -and $existing.Notes -ne $NotesText) {
+            try {
+                Set-VMSwitch -Name $Name -Notes $NotesText -ErrorAction Stop
+                Write-LabLog "Switch '$Name' Notes marker stamped" -Status OK
+            } catch {
+                Write-LabLog "Switch '$Name' Notes stamp failed (detection falls back to name): $($_.Exception.Message)" -Status WARN
+            }
+        }
         $sw = $existing
     } else {
         Write-LabLog "Creating Internal vSwitch '$Name'" -Status RUN

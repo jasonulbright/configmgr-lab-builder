@@ -12,8 +12,20 @@ function New-CMContentShare {
         sets NTFS + SMB ACLs that match the lab pattern:
 
           - Domain Admins:           Full
-          - Site server computer$:   Read   (Distribution Manager
-                                             pulls from package source)
+          - NT AUTHORITY\SYSTEM:     Full   (SHARE level -- Distribution
+                                             Manager runs as SYSTEM and
+                                             reads \\self\share loopback;
+                                             share-level access is checked
+                                             BEFORE NTFS, and a missing
+                                             share entry = access denied.
+                                             Found on the 2026-07-17 probe:
+                                             distmgr 2306 LE=0x5 taking the
+                                             content snapshot, which blocked
+                                             SMSContentHash, which blocked
+                                             app policy generation, which
+                                             silently broke ALL app deploys)
+          - Site server computer$:   Read   (share + NTFS; DPs pulling
+                                             from package source)
           - Domain Computers:        Read
           - svc-CMNAA:               Read
 
@@ -93,10 +105,20 @@ function New-CMContentShare {
             $shareCreated = $false
             if (-not (Get-SmbShare -Name $ShareName -ErrorAction SilentlyContinue)) {
                 New-SmbShare -Name $ShareName -Path $SharePath `
-                    -FullAccess "$NetBIOS\Domain Admins" `
-                    -ReadAccess "$NetBIOS\Domain Computers", "$NetBIOS\$NAAAccount" |
+                    -FullAccess "$NetBIOS\Domain Admins", 'NT AUTHORITY\SYSTEM' `
+                    -ReadAccess "$NetBIOS\Domain Computers", "$NetBIOS\$NAAAccount", "$NetBIOS\$env:COMPUTERNAME$" |
                     Out-Null
                 $shareCreated = $true
+            } else {
+                # Idempotent repair for shares created by older engine
+                # versions that omitted the SYSTEM share-level grant.
+                $existing = @(Get-SmbShareAccess -Name $ShareName | ForEach-Object AccountName)
+                if ('NT AUTHORITY\SYSTEM' -notin $existing) {
+                    Grant-SmbShareAccess -Name $ShareName -AccountName 'NT AUTHORITY\SYSTEM' -AccessRight Full -Force | Out-Null
+                }
+                if ("$NetBIOS\$env:COMPUTERNAME$" -notin $existing) {
+                    Grant-SmbShareAccess -Name $ShareName -AccountName "$NetBIOS\$env:COMPUTERNAME$" -AccessRight Read -Force | Out-Null
+                }
             }
 
             $acl = Get-Acl -Path $SharePath

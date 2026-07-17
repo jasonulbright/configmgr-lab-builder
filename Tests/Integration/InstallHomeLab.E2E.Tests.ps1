@@ -64,7 +64,23 @@ Describe 'Install-HomeLab E2E from a clean host' -Tag 'Integration','Tier3','Lon
     It 'completes Phases 01-10 and Test-HomeLab reports OverallReady' -Skip:(-not $script:gate) {
         InModuleScope HomeLab {
             # Bare-metal start: nuke any existing lab first.
-            Remove-HomeLab -KeepBaseImages -Confirm:$false -ErrorAction SilentlyContinue
+            #
+            # HOMELAB_E2E_FROMSCRATCH=1 makes "clean" PROVABLE: teardown
+            # includes the base-image cache, and the artifact audit must
+            # exit 0 before the deploy is allowed to start. Without it
+            # (default), cached base images are reused -- faster, but the
+            # run does NOT demonstrate a from-ISO build. The 2026-04 E2E
+            # was invalidated by exactly that: a stale cached base image
+            # was silently consumed and nobody noticed until review.
+            if ($env:HOMELAB_E2E_FROMSCRATCH -eq '1') {
+                Remove-HomeLab -RemoveBaseImageCache -Confirm:$false -ErrorAction SilentlyContinue
+
+                $auditScript = Resolve-Path "$PSScriptRoot\..\..\tools\Audit-HomeLabArtifacts.ps1"
+                & $auditScript
+                $LASTEXITCODE | Should -Be 0 -Because 'the host must be provably clean of lab artifacts before a from-scratch E2E counts'
+            } else {
+                Remove-HomeLab -KeepBaseImages -Confirm:$false -ErrorAction SilentlyContinue
+            }
 
             $start = Get-Date
 

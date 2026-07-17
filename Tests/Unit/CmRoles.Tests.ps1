@@ -98,17 +98,36 @@ Describe 'Add-CMRoleDistributionPoint parameter validation' {
     It 'accepts MinimumFreeSpaceMB at the upper bound' {
         InModuleScope HomeLab -Parameters @{ Cred = $script:cred } {
             param($Cred)
-            # Will not actually invoke the CM cmdlet because there's no
-            # live session; we verify the binding succeeds (i.e. the
-            # value is in range and the function gets to the elevation /
-            # remoting layer where it would fail).
-            $err = $null
-            try {
-                Add-CMRoleDistributionPoint -ComputerName CM01 -DomainCredential $Cred `
-                    -SiteCode MCM -DpServerFqdn 'DP01.contoso.com' `
-                    -MinimumFreeSpaceMB 1048576 -ErrorAction Stop
-            } catch { $err = $_.Exception.Message }
-            $err | Should -Not -Match 'range'
+            # MOCK the remoting layer. The previous version of this test
+            # assumed "no live session exists" and let the call run --
+            # on a host with a live lab and default passwords it opened
+            # a REAL PSSession to CM01 and executed REAL CM cmdlets
+            # (2026-07-16: it created a real DP01.contoso.com site
+            # system in the live site). Unit tests must never be able
+            # to reach a lab.
+            Mock Add-CMRoleSiteSystem -MockWith {
+                [pscustomobject]@{ Status = 'AlreadyExists' }
+            }
+            Mock Invoke-LabCommand -MockWith {
+                [pscustomobject]@{ Status = 'Created'; ServerFqdn = 'DP01.contoso.com' }
+            }
+
+            # 100000 is the real Add-CMDistributionPoint maximum; the
+            # module's ValidateRange mirrors it.
+            { Add-CMRoleDistributionPoint -ComputerName CM01 -DomainCredential $Cred `
+                -SiteCode MCM -DpServerFqdn 'DP01.contoso.com' `
+                -MinimumFreeSpaceMB 100000 -ErrorAction Stop } |
+                Should -Not -Throw
+        }
+    }
+
+    It 'rejects MinimumFreeSpaceMB above the real CM cmdlet maximum (100000)' {
+        InModuleScope HomeLab -Parameters @{ Cred = $script:cred } {
+            param($Cred)
+            { Add-CMRoleDistributionPoint -ComputerName CM01 -DomainCredential $Cred `
+                -SiteCode MCM -DpServerFqdn 'DP01.contoso.com' `
+                -MinimumFreeSpaceMB 1048576 } |
+                Should -Throw '*range*'
         }
     }
 }

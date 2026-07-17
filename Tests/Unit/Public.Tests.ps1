@@ -136,4 +136,12 @@ Describe 'Remove-HomeLab parameter validation' {
                 Should -Throw '*must be elevated*'
         }
     }
+
+    It 'rejects -KeepBaseImages together with -RemoveBaseImageCache' {
+        InModuleScope HomeLab {
+            Mock Test-LabIsElevated -MockWith { $true }
+            { Remove-HomeLab -KeepBaseImages -RemoveBaseImageCache -Confirm:$false } |
+                Should -Throw '*mutually exclusive*'
+        }
+    }
 }

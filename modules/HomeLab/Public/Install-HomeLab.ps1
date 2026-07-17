@@ -90,7 +90,16 @@ function Install-HomeLab {
         $LabSourcesRoot\SoftwarePackages\msodbcsql.msi.
 
     .PARAMETER MsOleDbMsiPath
-        Path to msoledbsql.msi. Optional / fail-soft.
+        Path to msoledbsql.msi. OPT-IN: when omitted, the engine does
+        NOT pre-install the OLE DB driver at all. CM setup manages
+        MSOLEDB itself as a bundled redistributable -- verified on the
+        2026-07-16 E2E: ConfigMgrSetup.log installed msoledbsql.msi
+        19.3.5 x64 from C:\Install\CM-PreReqs (exit 0) after the site
+        media's own copy failed hash verification. The site DB
+        connection itself is enforced over ODBC ("Enforce using MSODBC
+        for SQL connection"), so ODBC 18.5.2.1 is the driver that
+        actually matters. Pass a path only to pre-stage a specific
+        MSOLEDB build ahead of setup.
 
     .PARAMETER AdkOfflinePath
         ADK offline layout folder. Default:
@@ -302,7 +311,15 @@ function Install-HomeLab {
 
     # Resolve defaults that depend on $LabSourcesRoot.
     $sw = Join-Path $LabSourcesRoot 'SoftwarePackages'
-    if (-not $VcRedistPath)    { $VcRedistPath    = $sw }
+    # Canonical subfolder first (SoftwarePackages\VCRedist), flat layout
+    # as fallback -- same pattern as ODBC/MSOLEDB below. The real host
+    # keeps vc_redist.x64.exe in VCRedist\; with the flat default the
+    # Phase 07 VC++ install silently skipped (Test-Path gate).
+    if (-not $VcRedistPath) {
+        $VcRedistPath = if (Test-Path (Join-Path $sw 'VCRedist\vc_redist.x64.exe')) {
+            Join-Path $sw 'VCRedist'
+        } else { $sw }
+    }
     # ODBC + MSOLEDB are required pre-setup: CM 2509's setup.exe makes its
     # initial SQL probe (ConfigMgrSetup.log "Failed to connect SQL Server
     # 'master' db" with "Invalid connection string attribute") using the
@@ -321,13 +338,10 @@ function Install-HomeLab {
         }
         if (-not $OdbcMsiPath) { $OdbcMsiPath = Join-Path $sw 'msodbcsql.msi' }
     }
-    if (-not $MsOleDbMsiPath) {
-        foreach ($candidate in 'MSOLEDB\msoledbsql.msi','msoledbsql.msi') {
-            $p = Join-Path $sw $candidate
-            if (Test-Path $p) { $MsOleDbMsiPath = $p; break }
-        }
-        if (-not $MsOleDbMsiPath) { $MsOleDbMsiPath = Join-Path $sw 'msoledbsql.msi' }
-    }
+    # MsOleDbMsiPath intentionally has NO default resolution: MSOLEDB
+    # is a CM-setup-managed redistributable (see the parameter help),
+    # so the engine only pre-installs it when the caller explicitly
+    # provides a path.
     if (-not $CMPreReqsPath) {
         foreach ($candidate in @('CM-Prereqs','CMPrereqs','CM-Prereqs-2509-CB')) {
             $p = Join-Path $sw $candidate
@@ -368,7 +382,12 @@ function Install-HomeLab {
     # ---- 01-Prereq ----
     if (-not (_Skip '01-Prereq')) {
         Write-LabLog '--- Phase 01-Prereq ---' -Status INFO
-        $hp = Test-HostPrereq -LabImagePath $LabImagePath -RequireElevation
+        $winrmProbe = foreach ($vm in $cfg.VMs) {
+            $vm.Name
+            "$($vm.Name).$($cfg.DomainName)"
+        }
+        $hp = Test-HostPrereq -LabImagePath $LabImagePath -RequireElevation `
+            -WinRMProbeNames @($winrmProbe)
         if (-not $hp.Pass) {
             $failures = $hp.Checks.GetEnumerator() | Where-Object { -not $_.Value.Pass }
             # Hyper-V missing is a warning, not a hard fail; we install it next.
@@ -389,6 +408,16 @@ function Install-HomeLab {
     if (-not (_Skip '02-Network')) {
         Write-LabLog '--- Phase 02-Network ---' -Status INFO
         $null = New-LabSwitch -Name $networkName
+
+        # Host->VM name resolution. The host is not in the lab domain
+        # and its DNS knows nothing about it; every later phase connects
+        # by name (New-PSSession CM01 / DC01.contoso.com). The engine
+        # owns hosts-file entries for this -- previously it silently
+        # relied on hand-added ones (real-host drift, found 2026-07-16).
+        $hostsEntries = foreach ($vm in $cfg.VMs) {
+            @{ IP = $vm.IP; Names = @($vm.Name, "$($vm.Name).$($cfg.DomainName)") }
+        }
+        $null = Set-LabHostsEntries -Entries $hostsEntries
     }
 
     # ---- 03-Image ----
@@ -579,6 +608,16 @@ function Install-HomeLab {
             } -ThrottleLimit $throttle | Out-Null
         }
 
+        # Client push prerequisite: open inbound SMB/admin$ + RPC/WMI on
+        # every Client-role VM. Win11 blocks these by default even on
+        # the Domain profile (WinRM has its own default rule; File and
+        # Printer Sharing does not), so without this the CCRs fail
+        # forever with "access denied or invalid network path"
+        # (first verified E2E, 2026-07-16).
+        foreach ($clientVm in $clientVMs) {
+            Enable-LabClientPushFirewall -ComputerName $clientVm.Name -Credential $localCred | Out-Null
+        }
+
         # Service accounts on the DC: LabAdmin (orchestrator/Full Admin)
         # plus the 3 functional accounts (ClientPush / NAA / Join).
         New-LabServiceAccounts `
@@ -699,7 +738,11 @@ function Install-HomeLab {
             Install-LabOdbcDriver -ComputerName $cmName -DomainCredential $domainCred -MsiPath $OdbcMsiPath | Out-Null
         }
 
-        Install-LabMsOleDb -ComputerName $cmName -DomainCredential $domainCred -MsiPath $MsOleDbMsiPath | Out-Null
+        if ($MsOleDbMsiPath) {
+            Install-LabMsOleDb -ComputerName $cmName -DomainCredential $domainCred -MsiPath $MsOleDbMsiPath | Out-Null
+        } else {
+            Write-LabLog "[$cmName] MSOLEDB pre-install skipped by design: CM setup installs its own OLE DB driver (pass -MsOleDbMsiPath to override)" -Status SKIP
+        }
 
         if (Test-Path $AdkOfflinePath) {
             Install-LabAdk -ComputerName $cmName -DomainCredential $domainCred -OfflineLayoutPath $AdkOfflinePath | Out-Null

@@ -38,7 +38,9 @@ function Add-CMRoleDistributionPoint {
 
     .PARAMETER MinimumFreeSpaceMB
         Minimum free space CM is allowed to leave on the DP content
-        drive. Default 1024 (1 GB).
+        drive. Default 500 -- MECM's own product default for the DP
+        role, so it is guaranteed accepted by Add-CMDistributionPoint
+        on every supported build.
 
     .EXAMPLE
         Add-CMRoleDistributionPoint -ComputerName CM01 -DomainCredential $cred `
@@ -66,8 +68,12 @@ function Add-CMRoleDistributionPoint {
         [bool]$InstallInternetEnabledDp = $false,
 
         [Parameter()]
-        [ValidateRange(0, 1048576)]
-        [int]$MinimumFreeSpaceMB = 1024
+        # 100000 is the real Add-CMDistributionPoint maximum (verified
+        # against CM 2509: "The 1048576 argument is greater than the
+        # maximum allowed range of 100000"). Reject here, not 30 minutes
+        # into a deploy on the remote side.
+        [ValidateRange(0, 100000)]
+        [int]$MinimumFreeSpaceMB = 500
     )
 
     # Prerequisite: site system. Idempotent.

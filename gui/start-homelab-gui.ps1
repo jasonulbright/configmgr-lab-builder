@@ -621,6 +621,7 @@ $script:PostCmConfig = @{
 # Maps the template radio button x:Name to its templates/<file>.psd1 stem.
 $script:TemplateRadioMap = [ordered]@{
     rbDefault          = 'default'
+    rbTwoClients       = 'two-clients'
     rbSplitSql         = 'split-sql'
     rbRolePerServer    = 'role-per-server'
     rbAio              = 'aio'
@@ -1218,6 +1219,30 @@ function Wire-DeployPage {
                     LabSourcesRoot   = [string]$script:GuiSettings.Paths.LabSourcesRoot
                     LabImagePath     = [string]$script:GuiSettings.Paths.LabImagePath
                     ParallelThrottle = [int]$script:GuiSettings.Paths.ParallelThrottle
+                    LabPassword      = $null
+                }
+
+                # Lab password resolution. Built-in templates ship without
+                # plaintext passwords, and the deploy runspace has no
+                # interactive host -- Install-HomeLab's Read-Host fallback
+                # throws "lab password is required" there. Resolve a
+                # password on the UI side instead, but only when the
+                # selected config does not carry its own AdminPass and
+                # $env:HOMELAB_PASSWORD is not set (both of which the
+                # engine already honors). Fallback is the published
+                # default lab password (same one config.psd1 ships).
+                $cfgHasPass = $false
+                try {
+                    $cfgRaw = Import-PowerShellDataFile -LiteralPath $templatePath
+                    $cfgHasPass = -not [string]::IsNullOrEmpty([string]$cfgRaw['AdminPass'])
+                } catch {
+                    # Unreadable config: let Install-HomeLab produce its
+                    # own (actionable) config error.
+                    $null = $_
+                }
+                if (-not $cfgHasPass -and -not $env:HOMELAB_PASSWORD) {
+                    Add-LogLine 'No password in config and HOMELAB_PASSWORD not set; using the published default lab password.' 'WARN'
+                    $deploySettings.LabPassword = ConvertTo-SecureString -String 'P@ssw0rd!' -AsPlainText -Force
                 }
 
                 $script:DeployPS = [powershell]::Create()
@@ -1255,6 +1280,9 @@ function Wire-DeployPage {
                             ParallelThrottle   = $Settings.ParallelThrottle
                             ErrorAction        = 'Stop'
                             InformationAction  = 'Continue'
+                        }
+                        if ($Settings.LabPassword) {
+                            $params.LabPassword = $Settings.LabPassword
                         }
                         [void](Install-HomeLab @params)
                         $State.PhaseIndex = $State.PhaseTotal

@@ -97,18 +97,42 @@ function New-CMTestCollection {
             }
             Set-Location "${SiteCode}:"
 
+            # Continuous (incremental) refresh, NOT None: Phase 09 runs
+            # minutes after site install, before AD discovery has ever
+            # produced the client's device record. With RefreshType None
+            # nothing re-evaluates membership later, so the collection
+            # stays empty forever (first verified E2E, 2026-07-17: empty
+            # collection, deployment targeted=0, client never enforced).
             $coll = Get-CMDeviceCollection -Name $CollectionName -ErrorAction SilentlyContinue
             if (-not $coll) {
                 $coll = New-CMDeviceCollection `
                     -Name $CollectionName `
                     -LimitingCollectionName $Limiting `
-                    -RefreshType None -ErrorAction Stop
+                    -RefreshType Continuous -ErrorAction Stop
                 $collAction = 'Created'
             } else {
                 $collAction = 'AlreadyExists'
+                if ($coll.RefreshType -eq 1) {   # 1 = Manual/None
+                    Set-CMCollection -CollectionId $coll.CollectionID -RefreshType Continuous
+                }
             }
 
-            $memberAction = 'NotDiscovered'
+            # Ordering-proof membership: a name-scoped QUERY rule that
+            # matches the device whenever discovery creates it. A direct
+            # rule is also added when the record already exists (instant
+            # membership on re-runs).
+            $queryRuleName = "Device: $DeviceName"
+            $existingQuery = Get-CMDeviceCollectionQueryMembershipRule `
+                -CollectionId $coll.CollectionID -RuleName $queryRuleName -ErrorAction SilentlyContinue
+            if (-not $existingQuery) {
+                Add-CMDeviceCollectionQueryMembershipRule `
+                    -CollectionId $coll.CollectionID `
+                    -RuleName $queryRuleName `
+                    -QueryExpression ("select SMS_R_SYSTEM.ResourceID,SMS_R_SYSTEM.ResourceType,SMS_R_SYSTEM.Name,SMS_R_SYSTEM.SMSUniqueIdentifier,SMS_R_SYSTEM.ResourceDomainORWorkgroup,SMS_R_SYSTEM.Client from SMS_R_System where SMS_R_System.Name = `"$DeviceName`"") `
+                    -ErrorAction Stop
+            }
+
+            $memberAction = 'QueryRulePending'
             $device = Get-CMDevice -Name $DeviceName -ErrorAction SilentlyContinue
             if ($device) {
                 $existing = Get-CMDeviceCollectionDirectMembershipRule `
@@ -123,6 +147,7 @@ function New-CMTestCollection {
                     $memberAction = 'AlreadyMember'
                 }
             }
+            Invoke-CMCollectionUpdate -Name $CollectionName -ErrorAction SilentlyContinue
 
             $mwAction = 'Skipped'
             $existingMw = Get-CMMaintenanceWindow -CollectionId $coll.CollectionID -ErrorAction SilentlyContinue |

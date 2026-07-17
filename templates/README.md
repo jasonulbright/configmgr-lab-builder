@@ -1,6 +1,6 @@
 # HomeLab templates
 
-Six built-in topology templates. Each is a fully-formed
+Seven built-in topology templates. Each is a fully-formed
 `config.psd1` the engine consumes via `Install-HomeLab -Template
 <name>`.
 
@@ -9,6 +9,7 @@ Six built-in topology templates. Each is a fully-formed
 | Template | VMs | Engine support | When to use |
 |---|---|---|---|
 | `default.psd1` | 3 | Full | Smallest fully-functional lab. DC + CM (all CM roles co-located) + Client. |
+| `two-clients.psd1` | 4 | Full | default + a second client, so app install/uninstall testing gets a clean-machine control instead of checkpoint rollbacks. |
 | `split-sql.psd1` | 4 | Full | Mirrors enterprise tier-2: dedicated SQL VM. CM site DB lives on SQL01. |
 | `role-per-server.psd1` | 7 | Partial (SUP falls back to site server) | Mirrors enterprise tier-1: each CM role on its own VM. |
 | `aio.psd1` | 2 | Schema-only | DC + CM role bundle on one VM. CM 2509 setup rejects DC-co-resident installs; this template documents the topology but will not produce a working lab. |
@@ -42,9 +43,10 @@ at config-load time.
 ## Authoring rules
 
 - Top-level keys must include: `LabName`, `DomainName`, `SiteCode`,
-  `SiteName`, `Network`, `AdminUser`, `AdminPass`,
-  `ServerOSFilter`, `ClientOSFilter`, `ServiceAccounts`, and either
-  `VMs[]` (canonical) or legacy `DC` / `CM` / `Client` blocks.
+  `SiteName`, `Network`, `AdminUser`, `ServerOSFilter`,
+  `ClientOSFilter`, `ServiceAccounts`, and either `VMs[]` (canonical)
+  or legacy `DC` / `CM` / `Client` blocks. `AdminPass` is intentionally
+  NOT required -- Install-HomeLab injects the password at deploy time.
 - Every VM needs `Name`, `Roles`, `IP`, `Memory`, `MinMemory`,
   `MaxMemory`, `Processors`. `OSDiskSize` and `AutoStartDelay` are
   optional.

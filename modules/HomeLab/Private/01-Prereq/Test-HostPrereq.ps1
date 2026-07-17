@@ -42,6 +42,16 @@ function Test-HostPrereq {
     .PARAMETER RequireElevation
         Fail if the current process is not elevated.
 
+    .PARAMETER WinRMProbeNames
+        Lab VM names (short + FQDN) the engine will connect to over
+        WinRM/NTLM. When provided, adds a check that the WinRM client's
+        TrustedHosts covers every one of them (the host is not in the
+        lab domain, so Negotiate falls back to NTLM and WinRM refuses
+        the connection unless the target is trusted). Skipped when
+        omitted. Found as real-host drift 2026-07-16: the engine
+        depended on TrustedHosts without ever checking or documenting
+        it; the host happened to have '*'.
+
     .EXAMPLE
         $r = Test-HostPrereq
         if (-not $r.Pass) { $r.Checks.GetEnumerator() | Where-Object { -not $_.Value.Pass } }
@@ -59,7 +69,10 @@ function Test-HostPrereq {
         [string]$LabImagePath = 'C:\LabImages',
 
         [Parameter()]
-        [switch]$RequireElevation
+        [switch]$RequireElevation,
+
+        [Parameter()]
+        [string[]]$WinRMProbeNames
     )
 
     $checks = [ordered]@{}
@@ -215,7 +228,44 @@ function Test-HostPrereq {
         Message = $virtDetail
     }
 
-    # 7. Elevation (only checked when requested)
+    # 7. WinRM client TrustedHosts (only checked when probe names given).
+    # The engine authenticates to lab VMs with NTLM from a non-domain
+    # host; WinRM refuses that unless the target name is in TrustedHosts.
+    # This dependency was previously implicit -- deploys only worked on
+    # hosts where someone had set TrustedHosts by hand.
+    if ($WinRMProbeNames) {
+        $thPass = $false
+        $thValue = ''
+        $thMessage = ''
+        try {
+            $thValue = [string](Get-Item WSMan:\localhost\Client\TrustedHosts -ErrorAction Stop).Value
+            if ($thValue -eq '*') {
+                $thPass = $true
+                $thMessage = "TrustedHosts is '*' (covers all lab VMs)"
+            } else {
+                $patterns = @($thValue -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+                $uncovered = @($WinRMProbeNames | Where-Object {
+                    $name = $_
+                    -not (@($patterns | Where-Object { $name -like $_ }).Count -gt 0)
+                })
+                $thPass = $uncovered.Count -eq 0
+                $thMessage = if ($thPass) {
+                    "TrustedHosts ('$thValue') covers all lab VM names"
+                } else {
+                    "TrustedHosts ('$thValue') does not cover: $($uncovered -join ', '). Fix (elevated): Set-Item WSMan:\localhost\Client\TrustedHosts -Value '$(($patterns + $uncovered) -join ',')' -Force"
+                }
+            }
+        } catch {
+            $thMessage = "TrustedHosts unreadable ($($_.Exception.Message.Split([char]10)[0])). Fix (elevated): Set-Item WSMan:\localhost\Client\TrustedHosts -Value '$($WinRMProbeNames -join ',')' -Force"
+        }
+        $checks['WinRMTrustedHosts'] = [pscustomobject]@{
+            Pass    = $thPass
+            Value   = $thValue
+            Message = $thMessage
+        }
+    }
+
+    # 8. Elevation (only checked when requested)
     if ($RequireElevation) {
         $elevPass = $false
         try {

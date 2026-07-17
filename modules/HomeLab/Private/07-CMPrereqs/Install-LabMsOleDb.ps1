@@ -5,13 +5,20 @@ function Install-LabMsOleDb {
         a lab VM. Fail-soft.
 
     .DESCRIPTION
-        CM 2509 has a baseline MSOLEDB shim and works without a
-        separate driver install, so this step is fail-soft: a non-zero
-        exit code is logged WARN and the function returns without
-        throwing. Useful when the source download is flaky.
+        OPT-IN pre-stage only -- CM setup manages the OLE DB driver
+        itself. Verified on the 2026-07-16 E2E: setup treated
+        msoledbsql.msi as an external dependency file, validated the
+        copy in the CM-PreReqs cache (the site media's own copy failed
+        hash verification!), and installed 19.3.5 x64 with exit 0. The
+        site DB connection is enforced over ODBC regardless ("Enforce
+        using MSODBC for SQL connection" in ConfigMgrSetup.log), which
+        is why the ODBC 18.5.2.1 pin is the driver decision that
+        actually matters.
 
-        Caller decides whether to escalate. The earlier approach made
-        MSOLEDB optional for the same reason; we replicate.
+        Because CM owns this driver, Install-HomeLab no longer calls
+        this function unless -MsOleDbMsiPath is explicitly provided.
+        Fail-soft: a non-zero exit code is logged WARN and the function
+        returns without throwing.
 
     .PARAMETER ComputerName
         Target VM.
@@ -80,7 +87,16 @@ function Install-LabMsOleDb {
     }
 
     $tag = switch ($exit) { 0 { 'OK' } 3010 { 'WARN' } 1638 { 'WARN' } default { 'WARN' } }
-    Write-LabLog "[$ComputerName] MSOLEDB exit $exit" -Status $tag
+    $detail = switch ($exit) {
+        # 1633 = ERROR_INSTALL_PLATFORM_UNSUPPORTED. Seen on the first
+        # real-host run 2026-07-16: the staged msoledbsql.msi was the
+        # Arm64 build. Name the fix instead of leaving a bare code.
+        1633 { ' (MSI platform does not match the VM: you likely downloaded the Arm64 MSOLEDB MSI; stage the x64 build in SoftwarePackages\MSOLEDB)' }
+        3010 { ' (installed; reboot requested)' }
+        1638 { ' (a newer version is already installed)' }
+        default { '' }
+    }
+    Write-LabLog "[$ComputerName] MSOLEDB exit $exit$detail" -Status $tag
 
     return [pscustomobject]@{
         ExitCode       = $exit

@@ -25,6 +25,7 @@ BeforeAll {
     . (Join-Path $script:domainRoot 'Add-LabSchemaContainer.ps1')
     . (Join-Path $script:domainRoot 'Join-LabDomain.ps1')
     . (Join-Path $script:domainRoot 'New-LabServiceAccounts.ps1')
+    . (Join-Path $script:domainRoot 'Enable-LabClientPushFirewall.ps1')
 
     function New-FakeCred {
         param([string]$User = 'Administrator', [string]$Pass = 'p')
@@ -82,6 +83,75 @@ Describe 'Install-LabDC parameter validation' {
                               -DomainName 'corp.fabrikam.io' -NetBIOSName 'FABRIKAM' `
                               -SafeModeAdministratorPassword (ConvertTo-SecureString 'p' -AsPlainText -Force)
         $script:capturedNetBIOS | Should -Be 'FABRIKAM'
+    }
+}
+
+Describe 'Install-LabDC DNS forwarders' {
+    BeforeAll {
+        # Wait-LabVM lives under Private/04-VM and is not dot-sourced by the
+        # domain test setup; stub it so the post-promotion ready path runs.
+        . (Join-Path $script:domainRoot '..\04-VM\Wait-LabVM.ps1')
+    }
+
+    It 'configures DNS forwarders on the ready path' {
+        Mock Wait-LabVM            -MockWith { $true }
+        Mock Wait-LabReady         -MockWith { $true }
+        Mock Start-Sleep           -MockWith { }
+        Mock Clear-LabSessionCache -MockWith { }
+        $script:fwdScripts = @()
+        Mock Invoke-LabCommand -MockWith {
+            param($ComputerName, $Credential, $ScriptBlock, $ArgumentList, $Activity)
+            $script:fwdScripts += $ScriptBlock.ToString()
+            return [pscustomobject]@{ Status = 'PromotedRebootingNow' }
+        }
+
+        Install-LabDC -ComputerName DC01 -LocalCredential (New-FakeCred) `
+                      -DomainName 'contoso.com' `
+                      -SafeModeAdministratorPassword (ConvertTo-SecureString 'p' -AsPlainText -Force) `
+                      -DnsForwarders @('1.1.1.1','8.8.8.8') | Out-Null
+
+        ($script:fwdScripts -join "`n") | Should -Match 'Set-DnsServerForwarder'
+    }
+
+    It 'skips forwarder configuration when -DnsForwarders is empty' {
+        Mock Wait-LabVM            -MockWith { $true }
+        Mock Wait-LabReady         -MockWith { $true }
+        Mock Start-Sleep           -MockWith { }
+        Mock Clear-LabSessionCache -MockWith { }
+        $script:fwdScripts2 = @()
+        Mock Invoke-LabCommand -MockWith {
+            param($ComputerName, $Credential, $ScriptBlock, $ArgumentList, $Activity)
+            $script:fwdScripts2 += $ScriptBlock.ToString()
+            return [pscustomobject]@{ Status = 'PromotedRebootingNow' }
+        }
+
+        Install-LabDC -ComputerName DC01 -LocalCredential (New-FakeCred) `
+                      -DomainName 'contoso.com' `
+                      -SafeModeAdministratorPassword (ConvertTo-SecureString 'p' -AsPlainText -Force) `
+                      -DnsForwarders @() | Out-Null
+
+        ($script:fwdScripts2 -join "`n") | Should -Not -Match 'Set-DnsServerForwarder'
+    }
+}
+
+Describe 'Enable-LabClientPushFirewall' {
+
+    It 'enables inbound rules via the remoting layer and reports the count' {
+        Mock Write-LabLog -MockWith { }
+        $script:fwArgs = $null
+        Mock Invoke-LabCommand -MockWith {
+            param($ComputerName, $Credential, $ScriptBlock, $ArgumentList, $Activity)
+            $script:fwArgs = @{ ComputerName = $ComputerName; Activity = $Activity }
+            return [pscustomobject]@{ Enabled = 12; Smb445 = $true }
+        }
+        $r = Enable-LabClientPushFirewall -ComputerName CLIENT01 -Credential (New-FakeCred)
+        $r.Enabled | Should -Be 12
+        $script:fwArgs.ComputerName | Should -Be 'CLIENT01'
+    }
+
+    It 'rejects an empty ComputerName' {
+        { Enable-LabClientPushFirewall -ComputerName '' -Credential (New-FakeCred) } |
+            Should -Throw '*null*empty*'
     }
 }
 

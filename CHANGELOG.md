@@ -1,5 +1,186 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **`tools/Audit-HomeLabArtifacts.ps1` -- provable-clean referee.** The
+  2026-04 E2E was invalidated because a prior run's cached base image
+  survived teardown and was silently consumed by the next build. The
+  audit script enumerates every artifact class a lab run creates on the
+  host (lab VMs incl. strays from older configs and temp sysprep VMs,
+  checkpoints, lab vSwitches by name AND by the Notes marker, cached
+  base images, per-VM/orphaned/build-temp VHDXs, leaked ISO/VHD mounts,
+  %TEMP% debris, orphaned host NIC IPs on lab subnets) and exits 0 only
+  when the host is provably clean. Exit 3 = incomplete (not elevated;
+  never certify clean on 3). `-AllowBaseImageCache` supports the
+  `-KeepBaseImages` workflow.
+- **E2E from-scratch gate.** `HOMELAB_E2E_FROMSCRATCH=1` makes the
+  integration E2E tear down with `-RemoveBaseImageCache` and require
+  the artifact audit to exit 0 before deploying, so a "from scratch"
+  run demonstrably starts from a clean slate.
+- **`two-clients` template (4 VMs).** default + a second client, so
+  app install/uninstall testing gets a clean-machine control instead
+  of checkpoint rollbacks. Codifies the hand-built CLIENT02 that lived
+  on the lab host May-July 2026. Wired into the GUI template picker.
+- **`tools/Invoke-VerifiedE2E.ps1` -- evidence-first E2E runner.**
+  Teardown (incl. base-image cache) -> audit gate (must exit 0, else
+  abort) -> Install-HomeLab -> Test-HomeLab, all under
+  Start-Transcript. `-PreserveVM <name>` rescues a hand-made VM first
+  by merging its differencing chain into a standalone VHDX (so the
+  cached base image its chain hung off can still be destroyed).
+
+### Changed
+
+- **`Remove-HomeLab` is now provably complete.** Closes every gap that
+  allowed the invalid 2026-04 E2E: the removal set now includes temp
+  sysprep VMs (`HomeLabBaseSysprep-*`) and any VM whose disk lives
+  under `-LabImagePath` (not just the current config's names); the
+  `$LabImagePath` sweep runs unconditionally so orphaned per-VM VHDXs,
+  failed `build-*.vhdx` images, and stray VM config files die even when
+  their VM object is already gone; attached VHDXs/ISOs are dismounted
+  before deletion; `%TEMP%` debris (`homelab-unattend-*`,
+  `homelab-base-unattend-*.xml`, `HomeLab-VcStage`) is removed; lab
+  switches are found by config name AND the New-LabSwitch Notes marker;
+  a final verification pass logs any leftover artifact as WARN.
+  `-KeepBaseImages` now preserves every `*.base.vhdx` by pattern
+  (previously only chain-reachable parents of still-existing VMs, so
+  orphaned caches were unreachable either way). Removed the unused
+  `-VMRoot` parameter; added `-LabSourcesRoot`. `-KeepBaseImages` and
+  `-RemoveBaseImageCache` are now explicitly mutually exclusive.
+
+- **MSOLEDB pre-install is now opt-in (`-MsOleDbMsiPath` only).** The
+  2026-07-16 E2E proved the step redundant: CM 2509 setup manages the
+  OLE DB driver itself as an external dependency file -- it installed
+  msoledbsql.msi 19.3.5 x64 from the CM-PreReqs cache (exit 0) after
+  the site media's own copy failed hash verification, while the site
+  DB connection is enforced over ODBC ("Enforce using MSODBC for SQL
+  connection"; the MSOLEDBSQL prereq rule is Warning-severity). With
+  no -MsOleDbMsiPath the engine now skips the step with a SKIP log
+  instead of resolving a default MSI path.
+
+### Fixed
+
+- **Teardown could destroy non-lab VMs' configuration.** The straggler
+  sweep recursed through every VM's `Path`/`ConfigurationLocation`
+  deleting `.vmcx`/`.vmrs`/`.vhdx` files. VMs created at the Hyper-V
+  default store share `C:\ProgramData\Microsoft\Windows\Hyper-V` (as
+  all four VMs on the real host do), so on a host with non-lab VMs the
+  sweep would have deleted their configs too. Sweep is now restricted
+  to folders under `-LabImagePath` or named after a lab VM; shared
+  folders are skipped (Remove-VM already deletes the lab VM's own
+  config files).
+- **Host->VM name resolution was an unmanaged host dependency.** Every
+  phase connects by name from a non-domain host, but nothing in the
+  engine provided resolution -- deploys only worked because of
+  hand-added hosts-file entries (real-host drift, 2026-07-16). Phase
+  02-Network now writes `# HomeLab-managed` hosts entries for every
+  lab VM (replacing stale hand-made ones), `Remove-HomeLab` strips
+  them (including unmanaged lines that resolve lab VM names), and the
+  artifact audit flags leftover lab hosts entries.
+- **WinRM TrustedHosts was an unmanaged host dependency.** NTLM from
+  the non-domain host requires the lab VM names in the WinRM client's
+  TrustedHosts; the engine never checked or documented this (the real
+  host happened to have `*`). `Test-HostPrereq -WinRMProbeNames` now
+  verifies coverage and `Install-HomeLab` fails Phase 01 with the
+  exact elevated `Set-Item` fix command instead of dying mid-Phase-05
+  with a bare WinRM error.
+- **`New-LabSwitch` now stamps the Notes marker on pre-existing
+  switches.** The real host's `HomeLab-Network` predated the marker
+  convention and carried empty Notes, so marker-based lab-switch
+  detection (teardown + audit) couldn't recognize it after a rename;
+  name-based detection was the only net.
+- **`Add-CMRoleDistributionPoint` accepted `-MinimumFreeSpaceMB` values
+  the real CM cmdlet rejects.** ValidateRange said 0..1048576; CM
+  2509's `Add-CMDistributionPoint` caps at 100000 and would fail
+  mid-deploy on the remote side. The range now mirrors the real limit,
+  and the default drops 1024 -> 500 MB -- MECM's own product default
+  for the DP role, guaranteed accepted on every supported build.
+- **`-VcRedistPath` default missed the canonical `VCRedist\` subfolder.**
+  `Install-HomeLab` looked only in flat `SoftwarePackages\`, so with
+  the canonical layout (as on the real host) the Phase 07 VC++ install
+  silently skipped behind its Test-Path gate. Now resolves
+  `SoftwarePackages\VCRedist` first, flat layout as fallback -- same
+  pattern as ODBC/MSOLEDB.
+- **Unit test could execute real CM cmdlets against a live lab.** The
+  `CmRoles` upper-bound test assumed no live session was possible and
+  let the call run through the remoting layer; on a host with a
+  running lab and default passwords it opened a real PSSession to CM01
+  and created a real site system. The remoting layer is now mocked.
+- **`Set-LabDefenderExclusions` failed with no `-ExtraPaths`.**
+  `@($defaultPaths) + @($ExtraPaths)` appended a literal `$null` when
+  ExtraPaths was omitted, and the remote `Add-MpPreference` rejected
+  the whole array ("argument is null or empty") -- so the default
+  Install-HomeLab path applied ZERO Defender exclusions (fail-soft
+  WARN, caught on the first verified E2E, 2026-07-16). Nulls/empties
+  are now filtered; regression test added for the no-extras path.
+- **MSOLEDB exit 1633 now names the fix.** 1633 is
+  ERROR_INSTALL_PLATFORM_UNSUPPORTED -- on the verified E2E the staged
+  msoledbsql.msi turned out to be the Arm64 build. The WARN now says
+  "stage the x64 build in SoftwarePackages\MSOLEDB" instead of a bare
+  exit code.
+- **Client push could never reach a Windows 11 client.** The very
+  first CCR failed "access denied or invalid network path" on a
+  healthy, WinRM-reachable CLIENT01: Win11 blocks inbound SMB/admin$
+  (445) and RPC/WMI (135) by default even on the Domain profile, and
+  neither the engine nor any GPO opened them (WinRM only works out of
+  the box because the WinRM service ships its own domain allow rule).
+  New Phase 05 leaf `Enable-LabClientPushFirewall` enables the File
+  and Printer Sharing + WMI inbound rule groups (Domain/Private-scoped
+  rules only; the NAT NIC's Public profile stays closed) on every
+  Client-role VM after domain join. Validated live: push installed the
+  client in ~2 minutes once the rules were enabled. (Also fixed inside
+  the leaf: the NetSecurity Profile enum does not support -band on
+  live Win11 -- profile filtering is done via ToString matching.)
+- **The test collection stayed empty forever on a fresh build.**
+  `New-CMTestCollection` runs minutes after site install -- before AD
+  discovery has produced the client's device record -- and used a
+  direct membership rule plus `RefreshType None`, so the miss was
+  permanent (verified E2E: collection empty, deployment targeted=0).
+  The collection now uses Continuous (incremental) refresh and an
+  ordering-proof name-scoped query membership rule, with the direct
+  rule still added when the device already exists; existing
+  collections at RefreshType Manual are upgraded on re-run.
+- **The engine-created content share silently broke every application
+  deployment.** `New-CMContentShare` granted share-level access to
+  Domain Admins / Domain Computers / NAA only -- no `NT AUTHORITY\
+  SYSTEM`. Distribution Manager runs as SYSTEM and reads the package
+  source via loopback UNC, and share-level access is evaluated before
+  NTFS, so distmgr failed its content snapshot (status 2306, error 5)
+  -> the content hash never landed in SMSContentHash -> objreplmgr
+  could not generate the app's VersionInfo policy ("Unable to process
+  VersionInfo policy ... Failed to process Application Assignment")
+  -> clients never received ANY app-deployment policy. All of it
+  fail-soft and invisible to Test-HomeLab. The share now grants SYSTEM
+  Full + the site server computer account Read at share level, and
+  re-runs repair shares created by older engine versions.
+- **Stale manifest-version assertion.** `Module.Tests` asserted a
+  literal `2.0.0` long after the repo renumbered to 1.0.0.x; it now
+  asserts against the latest CHANGELOG release heading.
+
+- **Phase 02 crash on fresh sessions: "Unable to find type
+  [Microsoft.HyperV.PowerShell.VMSwitch]".** `New-LabSwitch` declared
+  its `[OutputType()]` with a type literal. PowerShell resolves
+  attribute type literals at first invocation and type resolution does
+  not auto-load modules, so on a session where nothing had loaded the
+  Hyper-V assembly yet the function failed before its body ran (the
+  `Get-VMSwitch` call that would have auto-loaded the module sits
+  inside the body). Switched to the string form
+  `[OutputType('...')]`, which never requires the assembly.
+- **GUI deploy always failed with "lab password is required".** The
+  GUI deploys built-in templates, which intentionally ship without
+  `AdminPass`, and ran `Install-HomeLab` in a background runspace whose
+  host cannot `Read-Host` -- so the v1.0.0.1 password restore in
+  `config.psd1` never applied to GUI deploys. The GUI now resolves the
+  password before launching the runspace: a config-supplied `AdminPass`
+  or `$env:HOMELAB_PASSWORD` is honored as before; otherwise the
+  published default lab password is passed via `-LabPassword` (with a
+  WARN line in the deploy log).
+- **Mojibake in `config.psd1`.** The "CHANGE THESE PASSWORDS" comment
+  ruler had been double-encoded (UTF-8 box-drawing dashes re-saved
+  through Windows-1252) and rendered as `â”€` garbage. Replaced with
+  plain ASCII dashes.
+
 ## [1.0.0.1] - 2026-06-09
 
 ### Fixed

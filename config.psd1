@@ -5,7 +5,7 @@
     SiteName       = 'Home Lab Primary Site'
     Network        = '192.168.50'
 
-    # â”€â”€ CHANGE THESE PASSWORDS BEFORE DEPLOYING â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- CHANGE THESE PASSWORDS BEFORE DEPLOYING ------------------------------
     # Default passwords are published in source control. Treat this lab as
     # internet-facing even if it is not -- change every password below.
     AdminUser      = 'LabAdmin'

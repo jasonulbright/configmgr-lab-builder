@@ -67,7 +67,11 @@ function Set-LabDefenderExclusions {
         'D:\SQLBackup'
     )
 
-    $allPaths = @($defaultPaths) + @($ExtraPaths)
+    # Filter nulls/empties: with no -ExtraPaths, @($ExtraPaths) is
+    # @($null) and the null element makes Add-MpPreference reject the
+    # whole array ("argument is null or empty") -- seen on the first
+    # real-host run 2026-07-16; unit tests always passed extras.
+    $allPaths = @(@($defaultPaths) + @($ExtraPaths) | Where-Object { $_ })
 
     Write-LabLog "[$ComputerName] Applying Defender exclusions ($($allPaths.Count) paths)" -Status RUN
 

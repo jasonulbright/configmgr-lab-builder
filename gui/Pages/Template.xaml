@@ -28,6 +28,16 @@
                     </StackPanel>
                 </RadioButton>
 
+                <RadioButton x:Name="rbTwoClients" GroupName="Template" Margin="0,4,0,4">
+                    <StackPanel>
+                        <TextBlock Text="two-clients" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock FontSize="11" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource MahApps.Brushes.Gray1}">
+                            4-VM lab. default + a second client, so app install/uninstall testing gets a clean-machine control without checkpoint rollbacks. Full engine support.
+                        </TextBlock>
+                    </StackPanel>
+                </RadioButton>
+
                 <RadioButton x:Name="rbSplitSql" GroupName="Template" Margin="0,4,0,4">
                     <StackPanel>
                         <TextBlock Text="split-sql" FontSize="14" FontWeight="SemiBold"/>
