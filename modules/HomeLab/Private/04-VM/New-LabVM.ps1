@@ -241,11 +241,17 @@ function New-LabVM {
 
     Set-VMProcessor -VMName $VMName -Count $ProcessorCount -ErrorAction Stop
 
+    # AutomaticCheckpointsEnabled $false: Windows 11 client Hyper-V
+    # defaults it ON, which takes a Standard checkpoint at first VM
+    # start -- every write after provisioning lands in an .avhdx
+    # stacked on the differencing chain (observed 2026-07-17: CM01's
+    # auto-checkpoint diff hit 33GB while its .vhdx stayed empty).
     Set-VM -Name $VMName `
            -AutomaticStartAction $AutoStartAction `
            -AutomaticStartDelay  $AutoStartDelay `
            -AutomaticStopAction  $AutoStopAction `
-           -CheckpointType Production -ErrorAction SilentlyContinue
+           -CheckpointType Production `
+           -AutomaticCheckpointsEnabled $false -ErrorAction SilentlyContinue
 
     # 4. Replace the auto-attached NIC with an explicit one carrying a
     # pinned MAC, then add the NAT NIC.

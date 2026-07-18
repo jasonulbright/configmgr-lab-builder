@@ -53,12 +53,19 @@
             OSDiskSize     = 150
             AutoStartDelay = 90
         }
+        # Clients start at 2GB (dynamic 1-4GB), NOT 4GB: total startup
+        # demand is what matters on a 32GB host. 2+10+2+2 = 16GB leaves
+        # room for the host OS + desktop apps; 2+10+4+4 = 20GB does not
+        # -- CLIENT02 failed to start with 0x800705AA "unable to
+        # allocate 4096 MB" on the first two-clients deploy (2026-07-17)
+        # while a desktop session held the balance. Dynamic memory grows
+        # them to 4GB when the guest actually needs it.
         @{
             Name           = 'CLIENT01'
             Roles          = @('Client')
             IP             = '192.168.50.100'
-            Memory         = 4GB
-            MinMemory      = 2GB
+            Memory         = 2GB
+            MinMemory      = 1GB
             MaxMemory      = 4GB
             Processors     = 2
             OSDiskSize     = 150
@@ -68,8 +75,8 @@
             Name           = 'CLIENT02'
             Roles          = @('Client')
             IP             = '192.168.50.101'
-            Memory         = 4GB
-            MinMemory      = 2GB
+            Memory         = 2GB
+            MinMemory      = 1GB
             MaxMemory      = 4GB
             Processors     = 2
             OSDiskSize     = 150

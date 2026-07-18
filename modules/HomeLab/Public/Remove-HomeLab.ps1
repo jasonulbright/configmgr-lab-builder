@@ -189,11 +189,19 @@ function Remove-HomeLab {
         Write-LabLog "[$name] Remove-VM" -Status OK
     }
 
-    # ---- 4. Delete harvested chains (dismount first) ----------------
+    # ---- 4. Delete harvested chains (dismount first, retry merges) --
     # Children before parents: probing a differencing child whose base
     # was already deleted makes Get-DiskImage throw "chain is broken"
     # (caught, but it pollutes the evidence transcript). Base images
     # sort last.
+    #
+    # Retry on a deadline: removing a VM that carries an automatic
+    # checkpoint kicks off an ASYNC .avhdx->parent merge in vmms, and
+    # the chain files stay locked until it completes (observed
+    # 2026-07-17 after a host reboot left auto-checkpoints on every
+    # VM). A single silent Remove-Item pass would leave them behind
+    # and fail the audit gate.
+    $pendingDelete = [System.Collections.Generic.List[string]]::new()
     $orderedVhdx = @($vhdxToDelete | Sort-Object { $_ -like '*.base.vhdx' })
     foreach ($p in $orderedVhdx) {
         if ([string]::IsNullOrEmpty($p)) { continue }
@@ -203,17 +211,34 @@ function Remove-HomeLab {
             continue
         }
         if (-not $PSCmdlet.ShouldProcess($p, 'Remove-Item')) { continue }
+        $pendingDelete.Add($p)
+    }
 
-        # A leaked Mount-VHD leaves the file attached; Remove-Item then
-        # fails (and -ErrorAction SilentlyContinue would hide it).
-        try {
-            $img = Get-DiskImage -ImagePath $p -ErrorAction Stop
-            if ($img.Attached) {
-                Write-LabLog "Dismounting attached image before delete: $p" -Status WARN
-                Dismount-VHD -Path $p -ErrorAction SilentlyContinue
-            }
-        } catch { }
-        Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue
+    $deleteDeadline = (Get-Date).AddMinutes(15)
+    while ($pendingDelete.Count -gt 0 -and (Get-Date) -lt $deleteDeadline) {
+        $stillPending = [System.Collections.Generic.List[string]]::new()
+        foreach ($p in $pendingDelete) {
+            if (-not (Test-Path -LiteralPath $p)) { continue }
+            # A leaked Mount-VHD leaves the file attached; Remove-Item
+            # then fails (and SilentlyContinue would hide it).
+            try {
+                $img = Get-DiskImage -ImagePath $p -ErrorAction Stop
+                if ($img.Attached) {
+                    Write-LabLog "Dismounting attached image before delete: $p" -Status WARN
+                    Dismount-VHD -Path $p -ErrorAction SilentlyContinue
+                }
+            } catch { }
+            Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue
+            if (Test-Path -LiteralPath $p) { $stillPending.Add($p) }
+        }
+        $pendingDelete = $stillPending
+        if ($pendingDelete.Count -gt 0) {
+            Write-LabLog "$($pendingDelete.Count) disk file(s) still locked (checkpoint merge in progress?); retrying in 10s" -Status RUN
+            Start-Sleep -Seconds 10
+        }
+    }
+    foreach ($p in $pendingDelete) {
+        Write-LabLog "Could not delete after retries: $p" -Status WARN
     }
 
     # ---- 5. Straggler sweep -----------------------------------------

@@ -100,6 +100,34 @@ Describe 'Test-HostPrereq HyperVFeature fast paths' {
     }
 }
 
+Describe 'Test-HostPrereq MemoryBudget' {
+
+    It 'skips the check when no demand is passed' {
+        InModuleScope HomeLab {
+            Mock Write-LabLog -MockWith { }
+            $r = Test-HostPrereq -LabImagePath 'C:\LabImages'
+            $r.Checks.Keys | Should -Not -Contain 'MemoryBudget'
+        }
+    }
+
+    It 'passes a tiny demand against real host memory' {
+        InModuleScope HomeLab {
+            Mock Write-LabLog -MockWith { }
+            $r = Test-HostPrereq -LabImagePath 'C:\LabImages' -VMStartupMemoryBytes 64MB
+            $r.Checks['MemoryBudget'].Pass | Should -BeTrue
+        }
+    }
+
+    It 'fails an absurd demand with an actionable message' {
+        InModuleScope HomeLab {
+            Mock Write-LabLog -MockWith { }
+            $r = Test-HostPrereq -LabImagePath 'C:\LabImages' -VMStartupMemoryBytes 1PB
+            $r.Checks['MemoryBudget'].Pass | Should -BeFalse
+            $r.Checks['MemoryBudget'].Message | Should -Match 'Close host applications|reduce VM Memory'
+        }
+    }
+}
+
 Describe 'Test-HostPrereq VirtExtensions fast path' {
 
     It 'passes via HypervisorPresent without trusting Win32_Processor.VirtualizationFirmwareEnabled' {

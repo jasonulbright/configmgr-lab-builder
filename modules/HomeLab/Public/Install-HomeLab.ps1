@@ -386,8 +386,11 @@ function Install-HomeLab {
             $vm.Name
             "$($vm.Name).$($cfg.DomainName)"
         }
+        $startupDemand = [long](($cfg.VMs | Measure-Object -Property Memory -Sum).Sum)
         $hp = Test-HostPrereq -LabImagePath $LabImagePath -RequireElevation `
-            -WinRMProbeNames @($winrmProbe)
+            -WinRMProbeNames @($winrmProbe) `
+            -VMStartupMemoryBytes $startupDemand `
+            -ConfigVMNames @($cfg.VMs.Name)
         if (-not $hp.Pass) {
             $failures = $hp.Checks.GetEnumerator() | Where-Object { -not $_.Value.Pass }
             # Hyper-V missing is a warning, not a hard fail; we install it next.

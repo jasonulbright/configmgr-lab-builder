@@ -241,6 +241,10 @@ function New-LabBaseImage {
         # sysprep /generalize /shutdown, so the VM powers itself off.
         Write-LabLog "Booting temp VM '$vmName' to run sysprep" -Status RUN
         $vm = New-VM -Name $vmName -Generation 2 -MemoryStartupBytes 2GB -VHDPath $tempVhdx -SwitchName ((Get-VMSwitch | Select-Object -First 1).Name) -ErrorAction Stop
+        # No automatic checkpoint on the sysprep boot: client Hyper-V
+        # defaults it on, which would divert sysprep's writes into an
+        # .avhdx that only merges back on checkpoint deletion.
+        Set-VM -Name $vmName -AutomaticCheckpointsEnabled $false -ErrorAction SilentlyContinue
         # Disable Secure Boot only if needed for the OS; Win11/WS2025 on Gen2 prefers Secure Boot ON.
         Set-VMProcessor -VMName $vmName -Count 2 -ErrorAction SilentlyContinue
         Set-VMMemory -VMName $vmName -DynamicMemoryEnabled $true -MinimumBytes 1GB -MaximumBytes 4GB -ErrorAction SilentlyContinue

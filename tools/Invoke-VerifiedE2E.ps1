@@ -36,8 +36,23 @@
 .PARAMETER SkipDeploy
     Stop after the teardown + clean audit (steps 0-2).
 
+.PARAMETER KeepBaseImages
+    Cache-reuse mode: teardown preserves the cached base images
+    (Remove-HomeLab -KeepBaseImages) and the audit gate runs with
+    -AllowBaseImageCache, so "clean" means "zero lab artifacts EXCEPT
+    the base-image cache". This validates the rapid teardown/rebuild
+    workflow -- the run is NOT a from-scratch proof.
+
+.PARAMETER Template
+    Built-in topology template name passed to Install-HomeLab
+    (e.g. 'two-clients'). Default: repo config.psd1.
+
 .EXAMPLE
     pwsh -File tools\Invoke-VerifiedE2E.ps1 -PreserveVM CLIENT02
+
+.EXAMPLE
+    # Cache-reuse rebuild into the 4-VM topology
+    pwsh -File tools\Invoke-VerifiedE2E.ps1 -KeepBaseImages -Template two-clients
 #>
 [CmdletBinding()]
 param(
@@ -57,7 +72,13 @@ param(
     [string]$PreserveRoot = 'C:\PreservedVMs',
 
     [Parameter()]
-    [switch]$SkipDeploy
+    [switch]$SkipDeploy,
+
+    [Parameter()]
+    [switch]$KeepBaseImages,
+
+    [Parameter()]
+    [string]$Template
 )
 
 $ErrorActionPreference = 'Stop'
@@ -106,17 +127,28 @@ try {
         }
     }
 
-    # ---- 1. Full teardown (incl. base-image cache) ------------------
-    Write-Host "`n===== Teardown (Remove-HomeLab -RemoveBaseImageCache) =====" -ForegroundColor Cyan
-    Remove-HomeLab -RemoveBaseImageCache -LabImagePath $LabImagePath -LabSourcesRoot $LabSourcesRoot -Confirm:$false
+    # ---- 1. Teardown -------------------------------------------------
+    if ($KeepBaseImages) {
+        Write-Host "`n===== Teardown (Remove-HomeLab -KeepBaseImages; cache preserved) =====" -ForegroundColor Cyan
+        Remove-HomeLab -KeepBaseImages -LabImagePath $LabImagePath -LabSourcesRoot $LabSourcesRoot -Confirm:$false
+    } else {
+        Write-Host "`n===== Teardown (Remove-HomeLab -RemoveBaseImageCache) =====" -ForegroundColor Cyan
+        Remove-HomeLab -RemoveBaseImageCache -LabImagePath $LabImagePath -LabSourcesRoot $LabSourcesRoot -Confirm:$false
+    }
 
     # ---- 2. The gate: host must be provably clean -------------------
     Write-Host "`n===== Clean-slate audit gate =====" -ForegroundColor Cyan
-    & (Join-Path $PSScriptRoot 'Audit-HomeLabArtifacts.ps1') -LabImagePath $LabImagePath -LabSourcesRoot $LabSourcesRoot
+    $auditArgs = @{ LabImagePath = $LabImagePath; LabSourcesRoot = $LabSourcesRoot }
+    if ($KeepBaseImages) { $auditArgs.AllowBaseImageCache = $true }
+    & (Join-Path $PSScriptRoot 'Audit-HomeLabArtifacts.ps1') @auditArgs
     if ($LASTEXITCODE -ne 0) {
         throw "Audit is not clean (exit $LASTEXITCODE). The E2E does not count -- fix the leftovers and re-run."
     }
-    Write-Host 'Host verified clean. This E2E starts from scratch.' -ForegroundColor Green
+    if ($KeepBaseImages) {
+        Write-Host 'Host verified clean (base-image cache exempted by design).' -ForegroundColor Green
+    } else {
+        Write-Host 'Host verified clean. This E2E starts from scratch.' -ForegroundColor Green
+    }
 
     if ($SkipDeploy) {
         Write-Host 'SkipDeploy set -- stopping after verified-clean teardown.' -ForegroundColor Yellow
@@ -124,8 +156,26 @@ try {
     }
 
     # ---- 3. The build ------------------------------------------------
-    Write-Host "`n===== Install-HomeLab (from ISO; no cache exists) =====" -ForegroundColor Cyan
-    $result = Install-HomeLab -LabSourcesRoot $LabSourcesRoot -LabImagePath $LabImagePath
+    $mode = if ($KeepBaseImages) { 'cache-reuse expected' } else { 'from ISO; no cache exists' }
+    Write-Host "`n===== Install-HomeLab ($mode) =====" -ForegroundColor Cyan
+    $installArgs = @{ LabSourcesRoot = $LabSourcesRoot; LabImagePath = $LabImagePath }
+    if ($Template) {
+        $installArgs.Template = $Template
+        # Templates ship without AdminPass, and this runner usually
+        # executes in a HIDDEN elevated window -- Install-HomeLab's
+        # interactive Read-Host fallback would block forever on a
+        # prompt nobody can see (it did: a two-clients run sat at the
+        # invisible prompt for an hour, 2026-07-17). Resolve the
+        # password here, mirroring the GUI: $env:HOMELAB_PASSWORD if
+        # set, else the published default lab password with a warning.
+        if ($env:HOMELAB_PASSWORD) {
+            $installArgs.LabPassword = ConvertTo-SecureString -String $env:HOMELAB_PASSWORD -AsPlainText -Force
+        } else {
+            Write-Host 'HOMELAB_PASSWORD not set; using the published default lab password.' -ForegroundColor Yellow
+            $installArgs.LabPassword = ConvertTo-SecureString -String 'P@ssw0rd!' -AsPlainText -Force
+        }
+    }
+    $result = Install-HomeLab @installArgs
     $result | Format-List | Out-Host
 
     # ---- 4. Health ----------------------------------------------------

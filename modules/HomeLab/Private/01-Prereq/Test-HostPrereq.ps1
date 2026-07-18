@@ -72,7 +72,21 @@ function Test-HostPrereq {
         [switch]$RequireElevation,
 
         [Parameter()]
-        [string[]]$WinRMProbeNames
+        [string[]]$WinRMProbeNames,
+
+        # Sum of the topology's VM startup memory. When provided, adds a
+        # check that the host can actually allocate it RIGHT NOW:
+        # available = free physical memory + memory currently assigned
+        # to VMs named in the config (they get clobbered and re-created
+        # by Phase 04, so their allocation comes back). Total-RAM >= 32GB
+        # says nothing about a host whose desktop session holds 15GB --
+        # the first two-clients deploy died at Phase 04 with 0x800705AA
+        # "unable to allocate 4096 MB" (2026-07-17).
+        [Parameter()]
+        [long]$VMStartupMemoryBytes,
+
+        [Parameter()]
+        [string[]]$ConfigVMNames
     )
 
     $checks = [ordered]@{}
@@ -228,7 +242,39 @@ function Test-HostPrereq {
         Message = $virtDetail
     }
 
-    # 7. WinRM client TrustedHosts (only checked when probe names given).
+    # 7. Startup-memory budget (only checked when the caller passes the
+    # topology's demand).
+    if ($VMStartupMemoryBytes -gt 0) {
+        $freeBytes = 0
+        try {
+            $osInfo = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
+            $freeBytes = [long]$osInfo.FreePhysicalMemory * 1KB
+        } catch { }
+        $reclaimBytes = 0
+        if ($ConfigVMNames -and (Get-Command Get-VM -ErrorAction SilentlyContinue)) {
+            try {
+                $reclaimBytes = (@(Get-VM -Name $ConfigVMNames -ErrorAction SilentlyContinue) |
+                    Measure-Object MemoryAssigned -Sum).Sum
+                if (-not $reclaimBytes) { $reclaimBytes = 0 }
+            } catch { }
+        }
+        $availGB  = [math]::Round(($freeBytes + $reclaimBytes) / 1GB, 1)
+        $demandGB = [math]::Round($VMStartupMemoryBytes / 1GB, 1)
+        # 1GB margin: Hyper-V worker processes + host churn during a
+        # 4-way parallel VM start.
+        $memPass = ($freeBytes + $reclaimBytes) -ge ($VMStartupMemoryBytes + 1GB)
+        $checks['MemoryBudget'] = [pscustomobject]@{
+            Pass    = $memPass
+            Value   = "${demandGB}GB demand / ${availGB}GB available"
+            Message = if ($memPass) {
+                "Topology startup memory ${demandGB}GB fits available ${availGB}GB (free + reclaimable lab VM memory)"
+            } else {
+                "Topology needs ${demandGB}GB startup memory but only ${availGB}GB is available (free + reclaimable lab VM memory). Close host applications or reduce VM Memory values in the config/template."
+            }
+        }
+    }
+
+    # 8. WinRM client TrustedHosts (only checked when probe names given).
     # The engine authenticates to lab VMs with NTLM from a non-domain
     # host; WinRM refuses that unless the target name is in TrustedHosts.
     # This dependency was previously implicit -- deploys only worked on
@@ -265,7 +311,7 @@ function Test-HostPrereq {
         }
     }
 
-    # 8. Elevation (only checked when requested)
+    # 9. Elevation (only checked when requested)
     if ($RequireElevation) {
         $elevPass = $false
         try {

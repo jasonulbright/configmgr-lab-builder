@@ -358,9 +358,12 @@ exit /b %ERRORLEVEL%
         throw $msg
     }
     if ($logCheck.Status -ne 'Success') {
-        # InProgress after setup.exe exited is unusual; treat as a soft
-        # warning and still gate on Wait-CMReady below.
-        Write-LabLog "[$ComputerName] setup.exe exited but log shows $($logCheck.Status); waiting for SMS_EXECUTIVE" -Status WARN
+        # InProgress after setup.exe exited is NORMAL on CM 2509:
+        # setup.exe hands off to an async bootstrap that finishes after
+        # the process exits. Observed on 3 of 3 verified installs
+        # (2026-07-16/17), recovered by the Wait-CMReady gate below
+        # every time -- INFO, not WARN.
+        Write-LabLog "[$ComputerName] setup.exe exited but log shows $($logCheck.Status); waiting for SMS_EXECUTIVE (normal 2509 async handoff)" -Status INFO
     }
 
     Remove-Item -Path $hostIni -Force -ErrorAction SilentlyContinue
