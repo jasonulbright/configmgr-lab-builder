@@ -1,6 +1,6 @@
 @{
     RootModule        = 'HomeLab.psm1'
-    ModuleVersion     = '1.0.0.1'
+    ModuleVersion     = '1.3.0'
     # 1.0.0.1: fix non-interactive deploy crash; restore default lab passwords.
     # 1.0.0: initial public release. Native PowerShell + Hyper-V engine.
     GUID              = 'a8f4c2d1-9b6e-4a73-8c5f-2e1d0a7b4e96'

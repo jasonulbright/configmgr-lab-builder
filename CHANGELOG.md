@@ -1,38 +1,13 @@
 # Changelog
 
-## [Unreleased]
+## [1.3.0] - 2026-07-17
 
-### Fixed
-
-- **Automatic checkpoints silently stacked an .avhdx diff on every lab
-  VM.** Windows 11 client Hyper-V defaults `AutomaticCheckpointsEnabled`
-  on, taking a Standard checkpoint at first VM start -- every write
-  after provisioning landed in a checkpoint diff on top of the
-  differencing chain (observed after a host reboot: CM01's diff at
-  33GB, its .vhdx empty). `New-LabVM` and the base-image sysprep VM now
-  disable automatic checkpoints. `Remove-HomeLab`'s chain deletion also
-  retries on a deadline, because deleting a VM with a checkpoint starts
-  an async avhdx merge that keeps the chain files locked.
-
-### Fixed (cache-reuse validation, 2026-07-17 evening)
-
-- **Nothing checked whether the host could actually allocate the
-  topology's startup memory.** Test-HostPrereq only asserted total RAM
-  >= 32GB; the first two-clients deploy (20GB startup demand) died at
-  Phase 04 with 0x800705AA "unable to allocate 4096 MB" because the
-  desktop session held the balance. Phase 01 now fails fast:
-  `Test-HostPrereq -VMStartupMemoryBytes` compares the config's summed
-  startup memory against free physical memory plus memory currently
-  assigned to same-named lab VMs (which Phase 04 clobbers and
-  reclaims), with a 1GB margin and an actionable message.
-- **`two-clients` template right-sized: clients start at 2GB (dynamic
-  1-4GB) instead of 4GB.** Startup demand drops 20GB -> 16GB -- same
-  as the default 3-VM lab; dynamic memory grows clients on guest
-  demand.
-- **"setup.exe exited but log shows InProgress" downgraded WARN ->
-  INFO.** It fired on 3 of 3 verified CM 2509 installs and the
-  Wait-CMReady gate recovered every time: it is the product's normal
-  async setup handoff, not an anomaly.
+Backed by three verified end-to-end runs on the reference host
+(20-thread / 32 GB): two from-scratch builds (3-VM default topology,
+1h 10m each, from ISO, each gated on an artifact audit proving the
+host held zero lab artifacts first) and one cache-reuse build (4-VM
+`two-clients` topology, 1h 05m, both base images cache-hit).
+Evidence transcripts live in `%ProgramData%\HomeLab\Logs`.
 
 ### Added
 
@@ -46,9 +21,6 @@
   a warning) -- templates ship without AdminPass, and the runner's
   hidden elevated window turned Install-HomeLab's interactive
   Read-Host fallback into an invisible hour-long hang.
-
-### Added
-
 - **`tools/Audit-HomeLabArtifacts.ps1` -- provable-clean referee.** The
   2026-04 E2E was invalidated because a prior run's cached base image
   survived teardown and was silently consumed by the next build. The
@@ -106,6 +78,32 @@
 
 ### Fixed
 
+- **Automatic checkpoints silently stacked an .avhdx diff on every lab
+  VM.** Windows 11 client Hyper-V defaults `AutomaticCheckpointsEnabled`
+  on, taking a Standard checkpoint at first VM start -- every write
+  after provisioning landed in a checkpoint diff on top of the
+  differencing chain (observed after a host reboot: CM01's diff at
+  33GB, its .vhdx empty). `New-LabVM` and the base-image sysprep VM now
+  disable automatic checkpoints. `Remove-HomeLab`'s chain deletion also
+  retries on a deadline, because deleting a VM with a checkpoint starts
+  an async avhdx merge that keeps the chain files locked.
+- **Nothing checked whether the host could actually allocate the
+  topology's startup memory.** Test-HostPrereq only asserted total RAM
+  >= 32GB; the first two-clients deploy (20GB startup demand) died at
+  Phase 04 with 0x800705AA "unable to allocate 4096 MB" because the
+  desktop session held the balance. Phase 01 now fails fast:
+  `Test-HostPrereq -VMStartupMemoryBytes` compares the config's summed
+  startup memory against free physical memory plus memory currently
+  assigned to same-named lab VMs (which Phase 04 clobbers and
+  reclaims), with a 1GB margin and an actionable message.
+- **`two-clients` template right-sized: clients start at 2GB (dynamic
+  1-4GB) instead of 4GB.** Startup demand drops 20GB -> 16GB -- same
+  as the default 3-VM lab; dynamic memory grows clients on guest
+  demand.
+- **"setup.exe exited but log shows InProgress" downgraded WARN ->
+  INFO.** It fired on 3 of 3 verified CM 2509 installs and the
+  Wait-CMReady gate recovered every time: it is the product's normal
+  async setup handoff, not an anomaly.
 - **Teardown could destroy non-lab VMs' configuration.** The straggler
   sweep recursed through every VM's `Path`/`ConfigurationLocation`
   deleting `.vmcx`/`.vmrs`/`.vhdx` files. VMs created at the Hyper-V

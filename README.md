@@ -35,6 +35,21 @@ Install via `winget install Microsoft.PowerShell`.
 The engine installs Hyper-V itself if it is missing. Reboot if the
 feature install reports `RebootRequired`, then re-run.
 
+Two host dependencies the engine manages or checks for you:
+
+- **Name resolution**: Phase 02 writes `# HomeLab-managed` hosts-file
+  entries for every lab VM (the host is not in the lab domain, so its
+  DNS knows nothing about it). `Remove-HomeLab` strips them.
+- **WinRM TrustedHosts**: connecting to workgroup/other-domain VMs
+  over NTLM requires the lab VM names in the WinRM client's
+  TrustedHosts. Phase 01 verifies coverage and fails with the exact
+  elevated `Set-Item` command to fix it.
+
+Phase 01 also checks that the topology's summed startup memory
+actually fits the host's currently-available RAM (free + memory
+reclaimable from existing lab VMs) -- total RAM meeting the minimum
+is not enough if your desktop session holds the balance.
+
 Stage these external assets before running. Paths default under
 `C:\LabSources` (overridable in `config.psd1` or via the GUI
 Options panel):
@@ -47,9 +62,9 @@ Options panel):
 | ConfigMgr 2509 baseline (extracted) | `C:\LabSources\SoftwarePackages\CM\ConfigMgr_2509\` | https://www.microsoft.com/en-us/evalcenter/download-microsoft-endpoint-configuration-manager (extract with 7-Zip into the `ConfigMgr_2509` subfolder) |
 | ADK offline layout | `C:\LabSources\SoftwarePackages\ADK\Offline\` | `adksetup.exe /quiet /layout C:\LabSources\SoftwarePackages\ADK\Offline` (downloader: https://go.microsoft.com/fwlink/?linkid=2289980) |
 | WinPE offline layout | `C:\LabSources\SoftwarePackages\ADKPE\Offline\` | `adkwinpesetup.exe /quiet /layout C:\LabSources\SoftwarePackages\ADKPE\Offline` (downloader: https://go.microsoft.com/fwlink/?linkid=2289981) |
-| VC++ 14.50 redist (x64 + x86) | `C:\LabSources\SoftwarePackages\` | https://aka.ms/vs/18/release/vc_redist.x64.exe and `...x86.exe` |
+| VC++ 14.50 redist (x64 + x86) | `C:\LabSources\SoftwarePackages\VCRedist\` | https://aka.ms/vs/18/release/vc_redist.x64.exe and `...x86.exe` (flat `SoftwarePackages\` also works) |
 | ODBC Driver 18.5.2.1 MSI | `C:\LabSources\SoftwarePackages\ODBC\msodbcsql.msi` | https://go.microsoft.com/fwlink/?linkid=2335671 (NOT 18.6.x; documented NULL regression breaks CM) |
-| MSOLEDB SQL 19 MSI | `C:\LabSources\SoftwarePackages\MSOLEDB\msoledbsql.msi` | https://aka.ms/downloadmsoledbsql (required; CM 2509 setup probes SQL via this driver before its bundled prereqs install) |
+| MSOLEDB SQL 19 MSI | *(not needed)* | CM 2509 setup installs its own OLE DB driver and enforces the site DB connection over ODBC (verified in ConfigMgrSetup.log). The engine skips MSOLEDB pre-install unless you explicitly pass `-MsOleDbMsiPath` -- if you do, stage the **x64** MSI. |
 
 OS edition names are detected automatically from each ISO's
 `install.wim`. Wildcard filters in `config.psd1`
@@ -89,7 +104,7 @@ Cover page with the six-step workflow summary. No input; click
 
 ![Template picker](docs/screenshots/gui-template.png)
 
-Radio-button picker for the six built-in topologies (see
+Radio-button picker for the seven built-in topologies (see
 [Templates](#templates)) plus an option to load a custom
 `config.psd1` from disk. The choice maps directly to the
 `-Template` (or `-ConfigPath`) parameter on `Install-HomeLab`.
@@ -214,20 +229,25 @@ Install-HomeLab -LabPassword $pw -PostCmConfig @{
 }
 ```
 
-Typical first deploy: 1.5-2 hours (most of which is the cached
-sysprepped base-image build). Re-deploys re-use the cached base
-images and finish in 20-30 minutes; a re-run against an already-
-healthy lab finishes in well under ten minutes thanks to the
+Measured on the reference host (20 threads / 32 GB, NVMe): a first
+deploy from ISOs takes **~1h 10m** (both audit-gated verification
+runs landed there), roughly 25-30 minutes of which is the one-time
+sysprepped base-image build. A full teardown-and-rebuild that reuses
+the cached base images runs **~45-65 minutes** depending on topology
+(measured: 1h 05m for the 4-VM `two-clients` template) -- the CM
+2509 site install dominates and does not cache. A re-run against an
+already-healthy lab finishes in well under ten minutes thanks to the
 idempotent `AlreadyExists` / `AlreadyInstalled` / `AlreadyPromoted`
 phase probes.
 
 ## Templates
 
-Six built-in topology templates ship in `templates/`:
+Seven built-in topology templates ship in `templates/`:
 
 | Template | VMs | Engine support | When to use |
 |---|---|---|---|
 | `default` | 3 | Full | Smallest fully-functional lab. DC + CM (all roles co-located) + Client. |
+| `two-clients` | 4 | Full | Default plus a second Windows 11 client, so app install/uninstall and supersedence testing gets a clean-machine control instead of checkpoint rollbacks. |
 | `split-sql` | 4 | Full | Mirrors enterprise tier-2: dedicated SQL VM. CM site DB lives on SQL01. |
 | `role-per-server` | 7 | Partial (SUP falls back to site server) | Mirrors enterprise tier-1: each CM role on its own VM. |
 | `aio` | 2 | Schema-only | DC + CM bundle on one VM. CM 2509 setup rejects DC-co-resident installs; this template documents the topology but will not produce a working lab. |
@@ -284,7 +304,7 @@ The HomeLab module exports seven cmdlets:
 | Cmdlet | What it does |
 |---|---|
 | `Install-HomeLab` | End-to-end deploy. Phases 01-Prereq through 11-PostCM, each independently idempotent. |
-| `Remove-HomeLab` | Stop + remove all lab VMs, delete VHDX chains, remove the lab vSwitch. Optional `-RemoveBaseImageCache` for a full reset. |
+| `Remove-HomeLab` | Provable teardown: removes lab VMs (including strays from other configs, discovered by disk location), VHDX chains, checkpoints, the lab vSwitch, engine-managed hosts entries, and temp debris. `-KeepBaseImages` preserves the image cache for fast rebuilds; `-RemoveBaseImageCache` wipes everything. Verify with `tools\Audit-HomeLabArtifacts.ps1`. |
 | `Test-HomeLab` | Per-VM health probe (state / WinRM / AD / SQL / SMS_EXECUTIVE / CM provider / domain join). Aggregate `OverallReady`. |
 | `Start-HomeLab` | Start in dependency order: DC -> CM -> CLIENT, with WinRM gates between each. |
 | `Stop-HomeLab` | Graceful Stop-VM in reverse order; `-TurnOff` for crash-stop. |
@@ -326,13 +346,16 @@ Content share:
 | Detail | Value |
 |---|---|
 | UNC | `\\CM01\ContentShare$` |
-| Local | `E:\ContentShare` |
-| Full Access | `CONTOSO\Domain Admins` |
-| Read | `CONTOSO\Domain Computers`, `CONTOSO\svc-CMNAA`, `CM01$` |
+| Local | `C:\ContentShare` |
+| Full Access | `CONTOSO\Domain Admins`, `NT AUTHORITY\SYSTEM` (share level -- Distribution Manager reads the package source as SYSTEM over loopback UNC) |
+| Read | `CONTOSO\Domain Computers`, `CONTOSO\svc-CMNAA`, `CONTOSO\CM01$` |
 
 Test collection: `HomeLab - Test Deployments`, limited by
-`All Desktop and Server Clients`, with `CLIENT01` as the only
-direct member and a daily 00:00-06:00 maintenance window.
+`All Desktop and Server Clients`, incremental (Continuous) refresh,
+membership via a name-scoped query rule on the first Client VM (plus
+a direct rule once the device record exists -- the query rule makes
+membership survive the fact that the collection is created before AD
+discovery has ever run), and a daily 00:00-06:00 maintenance window.
 
 CCMCache: 40 GB on the default client settings.
 
@@ -362,20 +385,46 @@ A no-op re-run against a healthy lab finishes in well under ten
 minutes.
 
 To wipe the lab and start fresh from the cached sysprepped base
-images (~20 minutes):
+images (~45-65 minutes measured; the CM site install dominates and
+does not cache):
 
 ```powershell
-Remove-HomeLab
+Remove-HomeLab -KeepBaseImages
 Install-HomeLab
 ```
 
 To force a full from-scratch rebuild including the base-image cache
-(~1.5-2 hours):
+(~1h 10m measured on the reference host):
 
 ```powershell
 Remove-HomeLab -RemoveBaseImageCache
 Install-HomeLab
 ```
+
+## Verified teardown and rebuild
+
+The engine's rebuild story is provable, not aspirational. Two tools
+make it so:
+
+- **`tools\Audit-HomeLabArtifacts.ps1`** enumerates every artifact
+  class a lab run creates on the host -- VMs (including strays from
+  older or renamed configs, found by disk location), checkpoints, lab
+  vSwitches, cached base images, orphaned or half-built VHDXs, leaked
+  ISO/VHD mounts, hosts-file entries, temp debris -- and exits 0 only
+  when the host is provably clean. `-AllowBaseImageCache` exempts the
+  image cache for the `-KeepBaseImages` workflow. Run it after any
+  teardown; trust the exit code, not vibes.
+- **`tools\Invoke-VerifiedE2E.ps1`** chains the whole loop under a
+  transcript: teardown, audit gate (aborts unless the audit exits 0),
+  `Install-HomeLab`, `Test-HomeLab`. `-KeepBaseImages` runs the
+  cache-reuse variant; `-Template` picks a topology. The transcript
+  in `%ProgramData%\HomeLab\Logs` is the evidence that the build
+  started from a clean slate and ended healthy.
+
+This exists because a build once silently consumed a stale cached
+image that an incomplete teardown left behind, and nobody noticed
+until review. The audit gate makes that class of mistake impossible
+to miss.
 
 ## Troubleshooting
 
@@ -462,11 +511,12 @@ mecm-homelab/
             Helpers/                    # INI / log / config / cred / wait / session / invoke / copy / MAC
             Private/
                 01-Prereq/              # Test-HostPrereq, Install-LabHyperV, Resolve-IsoEdition
-                02-Network/             # New-LabSwitch
+                02-Network/             # New-LabSwitch, Set-LabHostsEntries
                 03-Image/               # New-LabBaseImage (the keystone), cache key, base unattend
                 04-VM/                  # New-LabVhdx, New-Unattend, Mount-LabUnattend, New-LabVM, Wait-LabVM
                 05-Domain/              # Install-LabDC, Install-LabRootCA, Add-LabSchemaContainer,
-                                        #   Join-LabDomain, New-LabServiceAccounts
+                                        #   Join-LabDomain, New-LabServiceAccounts,
+                                        #   Enable-LabClientPushFirewall
                 06-Sql/                 # New-LabSqlConfigIni, Install-LabSqlServer,
                                         #   Set-LabSqlMemory, Set-LabSqlFirewall
                 07-CMPrereqs/           # VC++, ODBC, MSOLEDB, ADK, WinPE, WSUS, Defender exclusions
@@ -475,6 +525,7 @@ mecm-homelab/
                 09-CMConfig/            # Discovery / boundary / SUP / boundary group / DP / MP / accounts
                 10-Tools/               # Copy-CMTools, Set-LabAutoStartStop
                 11-PostCM/              # Collections, MWs, boot image, OS image, TS stub, applications
-    templates/                          # Six built-in topology templates
-    tools/                              # Standalone helpers (Watch-Deploy, Deploy-AllApps, etc.)
+    templates/                          # Seven built-in topology templates
+    tools/                              # Audit-HomeLabArtifacts, Invoke-VerifiedE2E,
+                                        #   Watch-Deploy, Deploy-AllApps
 ```
