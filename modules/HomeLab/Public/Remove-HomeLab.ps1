@@ -320,13 +320,30 @@ function Remove-HomeLab {
     }
 
     # Hosts entries: every HomeLab-managed line, plus hand-made lines
-    # that resolve a lab VM name (pre-engine drift).
-    if ($PSCmdlet.ShouldProcess('hosts file', 'Remove lab entries')) {
-        $hostsNames = foreach ($n in $removeVmNames) {
+    # that resolve a lab VM name (pre-engine drift). Look before asking --
+    # a repeat teardown on an already-clean hosts file should neither
+    # prompt for confirmation nor report work it did not do.
+    $hostsNames = @(
+        foreach ($n in $removeVmNames) {
             $n
             "$n.$($Config.DomainName)"
         }
-        $null = Remove-LabHostsEntries -Names @($hostsNames)
+    )
+    $hostsPath = Join-Path $env:SystemRoot 'System32\drivers\etc\hosts'
+    $hostsLines = @(Get-Content -LiteralPath $hostsPath -ErrorAction SilentlyContinue)
+    $namePattern = if ($hostsNames.Count) {
+        '(?i)(^|\s)(' + (($hostsNames | ForEach-Object { [regex]::Escape($_) }) -join '|') + ')(\s|$)'
+    } else { $null }
+    $hostsHasLabEntries = @(
+        $hostsLines | Where-Object {
+            $_ -notmatch '^\s*#' -and (
+                $_ -match '#\s*HomeLab-managed' -or ($namePattern -and $_ -match $namePattern)
+            )
+        }
+    ).Count -gt 0
+
+    if ($hostsHasLabEntries -and $PSCmdlet.ShouldProcess('hosts file', 'Remove lab entries')) {
+        $null = Remove-LabHostsEntries -Names $hostsNames
     }
 
     $tempDebris = @(

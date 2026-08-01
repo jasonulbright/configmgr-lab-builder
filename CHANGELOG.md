@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- `Audit-HomeLabArtifacts.ps1`: when cached base images are the only
+  dirty findings, the verdict now names `-AllowBaseImageCache` (or
+  `Remove-HomeLab -RemoveBaseImageCache`) instead of advising a plain
+  `Remove-HomeLab` re-run. The old message was unreachable guidance for
+  anyone on the documented `-KeepBaseImages` path: the teardown
+  preserves those images by design, so repeating it could never clear
+  the verdict.
+- `Remove-HomeLab`: the hosts-file step now checks for lab entries
+  before asking for confirmation. A repeat teardown on an already-clean
+  hosts file no longer prompts, and no longer implies it removed
+  entries that were not there.
+
 ## [1.3.0] - 2026-07-17
 
 Backed by three verified end-to-end runs on the reference host

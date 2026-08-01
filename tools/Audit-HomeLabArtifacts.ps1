@@ -399,6 +399,13 @@ if ($AsJson) {
         Write-Host 'INCOMPLETE: Hyper-V objects could not be enumerated (run elevated). Do NOT treat this host as verified-clean.' -ForegroundColor Yellow
     } elseif ($findings.Count -eq 0) {
         Write-Host 'VERDICT: host is provably clean of lab artifacts.' -ForegroundColor Green
+    } elseif (-not ($findings | Where-Object { $_.Class -ne 'BaseImage' })) {
+        # Only cached base images remain. Remove-HomeLab -KeepBaseImages
+        # preserves these by design, so repeating that command can never
+        # clear the verdict; name the switch that actually applies instead.
+        Write-Host 'VERDICT: host is DIRTY -- cached base images only.' -ForegroundColor Yellow
+        Write-Host '  Kept the cache on purpose? Re-run this audit with -AllowBaseImageCache.' -ForegroundColor Yellow
+        Write-Host '  Need a from-scratch host? Run Remove-HomeLab -RemoveBaseImageCache, then re-audit.' -ForegroundColor Yellow
     } else {
         Write-Host 'VERDICT: host is DIRTY. Run Remove-HomeLab (with -RemoveBaseImageCache for a from-scratch run), then re-audit.' -ForegroundColor Red
     }
