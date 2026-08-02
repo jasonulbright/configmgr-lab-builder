@@ -1,5 +1,51 @@
 # Changelog
 
+## [1.4.0] - 2026-08-02
+
+Rebrand only. No engine behaviour changes, no schema changes, and no
+change to any exported cmdlet -- this is a minor bump because the
+public API is untouched.
+
+### Changed
+
+- **Product renamed to ConfigMgr Lab Builder** (was "MECM HomeLab").
+  Microsoft dropped "Endpoint" from the product name; the current name
+  is Microsoft Configuration Manager and the product team's approved
+  short name is **ConfigMgr**. "MECM" and "MCM" are neither current nor
+  approved, so every occurrence in the README, docs, GUI, help blocks,
+  and inline comments now reads ConfigMgr.
+- **Repository renamed** `mecm-homelab` -> `configmgr-lab-builder`.
+  GitHub redirects the old URL, so existing clones and links keep
+  working; `git remote set-url` is optional but tidier.
+- **Service-account descriptions** now read `ConfigMgr Client Push`,
+  `ConfigMgr Network Access Account`, and `ConfigMgr OSD Domain Join`
+  in `config.psd1`, every topology template, and
+  `New-LabServiceAccounts`. This is the only rebrand change that
+  reaches deployed state: it applies to accounts created from now on.
+  Labs built before 1.4.0 keep the old AD descriptions until rebuilt,
+  which is cosmetic -- nothing keys off the description string.
+- Module manifest `Description`, `Tags`, `ProjectUri`, and
+  `ReleaseNotes` refreshed. `ReleaseNotes` had been stale at v1.0.0.1
+  since the 1.0 line.
+
+### Fixed
+
+- GUI version badges in `MainWindow.xaml` and the Options "About"
+  panel were hardcoded to `v1.0.0` and never updated across the 1.1,
+  1.2, and 1.3 releases. Both now read `v1.4.0`.
+
+### Unchanged (deliberately)
+
+- **Module name and public surface.** The module is still `HomeLab`,
+  and all seven exported cmdlets (`Install-HomeLab`, `Remove-HomeLab`,
+  `Start-HomeLab`, `Stop-HomeLab`, `Test-HomeLab`, `Connect-HomeLabVM`,
+  `Enter-HomeLabSession`) keep their names. Renaming them would be a
+  breaking change and a major bump, not a minor one.
+- **Site code `MCM`.** This is a ConfigMgr three-letter site code, not
+  branding. It is baked into the database name `CM_MCM`, the WMI
+  namespace `ROOT\SMS\site_MCM`, and the unattend INI. Changing it
+  would break every existing lab for no naming benefit.
+
 ## [1.3.1] - 2026-08-01
 
 ### Fixed

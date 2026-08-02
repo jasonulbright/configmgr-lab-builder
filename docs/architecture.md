@@ -1,4 +1,4 @@
-# mecm-homelab architecture
+# configmgr-lab-builder architecture
 
 ## One-paragraph overview
 

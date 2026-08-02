@@ -1,7 +1,7 @@
 function Install-HomeLab {
     <#
     .SYNOPSIS
-        Build the entire MECM home lab from a Hyper-V-less Windows host.
+        Build the entire ConfigMgr home lab from a Hyper-V-less Windows host.
         End-to-end orchestrator for the native engine.
 
     .DESCRIPTION

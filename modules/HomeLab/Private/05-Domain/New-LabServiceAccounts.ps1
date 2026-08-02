@@ -102,19 +102,19 @@ function New-LabServiceAccounts {
         },
         @{
             Sam   = $ServiceAccounts.ClientPush.Name
-            Full  = 'MECM Client Push'
+            Full  = 'ConfigMgr Client Push'
             Pass  = $ServiceAccounts.ClientPush.Password
             Desc  = $ServiceAccounts.ClientPush.Desc
         },
         @{
             Sam   = $ServiceAccounts.NAA.Name
-            Full  = 'MECM Network Access Account'
+            Full  = 'ConfigMgr Network Access Account'
             Pass  = $ServiceAccounts.NAA.Password
             Desc  = $ServiceAccounts.NAA.Desc
         },
         @{
             Sam   = $ServiceAccounts.Join.Name
-            Full  = 'MECM OSD Domain Join'
+            Full  = 'ConfigMgr OSD Domain Join'
             Pass  = $ServiceAccounts.Join.Password
             Desc  = $ServiceAccounts.Join.Desc
         }

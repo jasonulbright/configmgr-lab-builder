@@ -220,14 +220,14 @@
                                    FontSize="14" FontWeight="SemiBold"
                                    Margin="0,4,0,8"/>
                         <TextBlock x:Name="txtAboutVersion"
-                                   Text="MECM HomeLab v1.0.0 GUI"
+                                   Text="ConfigMgr Lab Builder v1.4.0 GUI"
                                    FontSize="12"
                                    Margin="0,0,0,2"/>
                         <Button x:Name="btnGitHub"
                                 Style="{StaticResource LinkButtonStyle}"
                                 Margin="0,0,0,8"
                                 AutomationProperties.Name="Open GitHub project page in browser">
-                            <TextBlock Text="github.com/jasonulbright/mecm-homelab"
+                            <TextBlock Text="github.com/jasonulbright/configmgr-lab-builder"
                                        FontSize="11"
                                        Foreground="{DynamicResource MahApps.Brushes.Accent}"
                                        TextDecorations="Underline"/>

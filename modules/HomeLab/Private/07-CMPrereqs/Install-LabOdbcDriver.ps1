@@ -79,7 +79,7 @@ function Install-LabOdbcDriver {
                  -Path $MsiPath -Destination $remoteMsi `
                  -Activity 'Push ODBC 18 MSI'
 
-    # NOTE: pinned 18.5.2.1; 18.6.x is broken for MECM 2509 (NULL-handling
+    # NOTE: pinned 18.5.2.1; 18.6.x is broken for ConfigMgr 2509 (NULL-handling
     # regression in SQL provider). Do NOT swap the MSI to a newer build
     # without re-validating end-to-end CM install. See header.
     Write-LabLog "[$ComputerName] Installing ODBC Driver 18 (pinned 18.5.2.1; 18.6.x BROKEN for CM 2509)" -Status RUN

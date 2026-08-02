@@ -5,7 +5,7 @@
     # CM01     SqlServer + SiteServer + ManagementPoint + DistributionPoint + SoftwareUpdatePoint
     # CLIENT01 Client
     #
-    # This is the simplest fully-functional MECM lab. Mirrors the
+    # This is the simplest fully-functional ConfigMgr lab. Mirrors the
     # standard DC/CM/Client triple.
 
     LabName        = 'HomeLab'
@@ -77,17 +77,17 @@
     ServiceAccounts = @{
         ClientPush = @{
             Name     = 'svc-CMPush'
-            Desc     = 'MECM Client Push Installation Account'
+            Desc     = 'ConfigMgr Client Push Installation Account'
             Group    = 'Domain Admins'
         }
         NAA = @{
             Name     = 'svc-CMNAA'
-            Desc     = 'MECM Network Access Account'
+            Desc     = 'ConfigMgr Network Access Account'
             Group    = $null
         }
         Join = @{
             Name     = 'svc-CMJoin'
-            Desc     = 'MECM OSD task sequence domain-join account'
+            Desc     = 'ConfigMgr OSD task sequence domain-join account'
             Group    = 'Domain Admins'
         }
     }

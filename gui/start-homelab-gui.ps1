@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Launch the MECM HomeLab GUI (PS+WPF MahApps shell).
+    Launch the ConfigMgr Lab Builder GUI (PS+WPF MahApps shell).
 
 .DESCRIPTION
     Entry script for the GUI. Loads the MahApps
@@ -1574,7 +1574,7 @@ function Wire-OptionsPage {
     $btnGitHub = $Page.FindName('btnGitHub')
     if ($btnGitHub) {
         $btnGitHub.Add_Click({
-            [void](Open-ExternalUri -Uri 'https://github.com/jasonulbright/mecm-homelab')
+            [void](Open-ExternalUri -Uri 'https://github.com/jasonulbright/configmgr-lab-builder')
         })
     }
 
@@ -1648,7 +1648,7 @@ $script:tglTheme.Add_Toggled({
 # Initial state: Dark.Steel theme + Welcome page. Theme is per-session
 # (sidebar toggle); Dark.Steel matches the brand-default starting state.
 Apply-Theme -IsDark $true
-Load-Page -Name 'Welcome' -Title 'Welcome' -Subtitle 'MECM HomeLab GUI'
+Load-Page -Name 'Welcome' -Title 'Welcome' -Subtitle 'ConfigMgr Lab Builder GUI'
 Add-LogLine ('GUI started; logs at {0}' -f $script:LogFile)
 Add-LogLine ('Settings loaded from {0}' -f $script:SettingsFile)
 

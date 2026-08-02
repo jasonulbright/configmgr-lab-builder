@@ -1,7 +1,7 @@
-# MECM Home Lab
+# ConfigMgr Lab Builder
 
 Native PowerShell + Hyper-V engine that builds a fully-functional
-Microsoft Endpoint Configuration Manager 2509 home lab from a fresh
+Microsoft Configuration Manager 2509 home lab from a fresh
 Windows host. One cmdlet, one wizard, no external module dependencies.
 
 The lab is three VMs on an isolated Hyper-V vSwitch with NAT for OS
@@ -16,7 +16,7 @@ activation:
 Larger topologies (split SQL, role-per-server, CAS hierarchies) are
 available via templates -- see [Templates](#templates).
 
-![MECM HomeLab GUI](docs/screenshots/main-dark.png)
+![ConfigMgr Lab Builder GUI](docs/screenshots/main-dark.png)
 
 ## Hardware
 
@@ -493,7 +493,7 @@ Invoke-Command -ComputerName CM01.contoso.com -Credential $cred -ScriptBlock {
 ## Architecture
 
 ```
-mecm-homelab/
+configmgr-lab-builder/
     config.psd1                         # Default lab knobs
     CHANGELOG.md
     README.md

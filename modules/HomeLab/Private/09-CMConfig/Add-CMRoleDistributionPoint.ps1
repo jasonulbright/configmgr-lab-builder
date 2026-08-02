@@ -38,7 +38,7 @@ function Add-CMRoleDistributionPoint {
 
     .PARAMETER MinimumFreeSpaceMB
         Minimum free space CM is allowed to leave on the DP content
-        drive. Default 500 -- MECM's own product default for the DP
+        drive. Default 500 -- ConfigMgr's own product default for the DP
         role, so it is guaranteed accepted by Add-CMDistributionPoint
         on every supported build.
 

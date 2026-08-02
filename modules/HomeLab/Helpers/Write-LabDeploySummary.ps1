@@ -139,8 +139,8 @@ function Write-LabDeploySummary {
     $lines += '   ' + ('-' * 60)
     $lines += "   Engine log:    $engineLog"
     $lines += "   Engine JSON:   $engineLog.json"
-    if (Test-Path 'C:\projects\mecm-homelab\gui\Logs') {
-        $lines += '   GUI logs:      C:\projects\mecm-homelab\gui\Logs'
+    if (Test-Path 'C:\projects\configmgr-lab-builder\gui\Logs') {
+        $lines += '   GUI logs:      C:\projects\configmgr-lab-builder\gui\Logs'
     }
     $lines += ''
 

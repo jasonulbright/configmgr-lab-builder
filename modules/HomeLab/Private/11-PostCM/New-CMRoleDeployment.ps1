@@ -10,7 +10,7 @@ function New-CMRoleDeployment {
         when a deployment of the same Application + Collection pair
         already exists.
 
-        The homelab's deployment defaults match what an MECM admin
+        The homelab's deployment defaults match what a ConfigMgr admin
         would expect for a sandbox lab: Available (not Required) so
         clients pull only when the user clicks Install in Software
         Center; user-visible notifications enabled; rerun on failure.

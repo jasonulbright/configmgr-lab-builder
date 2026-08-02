@@ -59,19 +59,19 @@
         ClientPush = @{
             Name     = 'svc-CMPush'
             Password = 'P@ssw0rd!'
-            Desc     = 'MECM Client Push Installation Account'
+            Desc     = 'ConfigMgr Client Push Installation Account'
             Group    = 'Domain Admins'  # Needs local admin on all targets
         }
         NAA = @{
             Name     = 'svc-CMNAA'
             Password = 'P@ssw0rd!'
-            Desc     = 'MECM Network Access Account'
+            Desc     = 'ConfigMgr Network Access Account'
             Group    = $null  # Domain Users only -- least privilege
         }
         Join = @{
             Name     = 'svc-CMJoin'
             Password = 'P@ssw0rd!'
-            Desc     = 'MECM OSD task sequence domain-join account'
+            Desc     = 'ConfigMgr OSD task sequence domain-join account'
             Group    = 'Domain Admins'  # Also added to Remote Desktop Users
         }
     }

@@ -56,9 +56,9 @@
     )
 
     ServiceAccounts = @{
-        ClientPush = @{ Name='svc-CMPush'  ; Desc='MECM Client Push'   ; Group='Domain Admins' }
-        NAA        = @{ Name='svc-CMNAA'   ; Desc='MECM NAA'           ; Group=$null }
-        Join       = @{ Name='svc-CMJoin' ; Desc='MECM OSD task sequence domain-join account' ; Group='Domain Admins' }
+        ClientPush = @{ Name='svc-CMPush'  ; Desc='ConfigMgr Client Push'   ; Group='Domain Admins' }
+        NAA        = @{ Name='svc-CMNAA'   ; Desc='ConfigMgr NAA'           ; Group=$null }
+        Join       = @{ Name='svc-CMJoin' ; Desc='ConfigMgr OSD task sequence domain-join account' ; Group='Domain Admins' }
     }
 
     ODBCVersion    = '18.5.2.1'

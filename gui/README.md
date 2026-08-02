@@ -1,4 +1,4 @@
-# MECM HomeLab GUI
+# ConfigMgr Lab Builder GUI
 
 PowerShell + WPF (MahApps.Metro) wizard layered on top of the
 HomeLab module. The cmdlet path stays primary; this GUI is additive.
@@ -6,7 +6,7 @@ HomeLab module. The cmdlet path stays primary; this GUI is additive.
 ## Launch
 
 ```powershell
-pwsh -NoProfile -File c:\projects\mecm-homelab\gui\start-homelab-gui.ps1
+pwsh -NoProfile -File c:\projects\configmgr-lab-builder\gui\start-homelab-gui.ps1
 ```
 
 PS 7.6 LTS required (matches the engine floor).

@@ -89,17 +89,17 @@
     ServiceAccounts = @{
         ClientPush = @{
             Name     = 'svc-CMPush'
-            Desc     = 'MECM Client Push Installation Account'
+            Desc     = 'ConfigMgr Client Push Installation Account'
             Group    = 'Domain Admins'
         }
         NAA = @{
             Name     = 'svc-CMNAA'
-            Desc     = 'MECM Network Access Account'
+            Desc     = 'ConfigMgr Network Access Account'
             Group    = $null
         }
         Join = @{
             Name     = 'svc-CMJoin'
-            Desc     = 'MECM OSD task sequence domain-join account'
+            Desc     = 'ConfigMgr OSD task sequence domain-join account'
             Group    = 'Domain Admins'
         }
     }
