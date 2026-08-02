@@ -36,6 +36,17 @@ public API is untouched.
   `lab-console-site-status.png` (all seven site systems reporting OK in
   the console) at the top of After deployment.
 
+### Changed (screenshots)
+
+- **All four GUI wizard screenshots recaptured against 1.4.0.** Every
+  one still showed the old MECM HomeLab branding, and
+  `gui-host-check.png` was old enough to show a `2.0.0-alpha` version
+  string from before the repo renumbered to 1.0.0.
+- **`main-dark.png` removed rather than recaptured.** It framed the
+  same Welcome page as `gui-welcome.png`. `gui-welcome.png` is now the
+  README hero, and the "1. Welcome" walkthrough step refers up to it
+  instead of repeating the identical image 90 lines later.
+
 ### Fixed
 
 - GUI version badges in `MainWindow.xaml` and the Options "About"

@@ -16,7 +16,7 @@ activation:
 Larger topologies (split SQL, role-per-server, CAS hierarchies) are
 available via templates -- see [Templates](#templates).
 
-![ConfigMgr Lab Builder GUI](docs/screenshots/main-dark.png)
+![ConfigMgr Lab Builder GUI](docs/screenshots/gui-welcome.png)
 
 ## Hardware
 
@@ -107,10 +107,9 @@ animated and the log drawer streams live.
 
 ### 1. Welcome
 
-![Welcome page](docs/screenshots/gui-welcome.png)
-
-Cover page with the six-step workflow summary. No input; click
-**Pick template** in the sidebar (or Next) to begin.
+Pictured at the top of this README. Cover page with the six-step
+workflow summary. No input; click **Pick template** in the sidebar
+(or Next) to begin.
 
 ### 2. Pick template
 
