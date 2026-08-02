@@ -27,6 +27,18 @@ available via templates -- see [Templates](#templates).
 | CPU | 4 cores | 8+ cores |
 | OS | Windows 10/11 Pro / Server 2022+ (Hyper-V capable) | Windows 11 Pro |
 
+The lab is lighter at rest than the minimum suggests. Below is the
+4-VM `two-clients` topology idling on the reference host: 11 GB of
+assigned memory across all four VMs (DC01 2.0, CM01 5.2, CLIENT01 1.9,
+CLIENT02 1.9) and 0-3% CPU.
+
+![4-VM lab idling in Hyper-V Manager](docs/screenshots/lab-hyperv-4vm-running.png)
+
+Every VM runs on Dynamic Memory, so those are idle figures, not
+ceilings -- CM01 is provisioned 4-12 GB and will climb toward the top
+of that band during CM setup, content distribution, and OSD. Size the
+host for the peak, not for this screenshot.
+
 ## Software prerequisites
 
 PowerShell 7.6 LTS (or newer) is required on the host orchestrator.
@@ -326,6 +338,18 @@ Returns a structured report with per-VM `State` / `WinRM` / role
 checks plus an `OverallReady` boolean.
 
 ## After deployment
+
+You get a real site, not a site that merely finished installing. All
+seven site systems report OK on first console launch -- component
+server, management point, distribution point, site server, software
+update point, and both database objects -- under site code `MCM` on
+`CM01.contoso.com`.
+
+![ConfigMgr console showing all site systems OK](docs/screenshots/lab-console-site-status.png)
+
+The site installs under the CM 2509 evaluation license -- 365 days
+from install, which the console title bar counts down (346 left in the
+shot above). Plan on a rebuild or a product key before it expires.
 
 Service accounts (created in `OU=Service Accounts,DC=contoso,DC=com`):
 

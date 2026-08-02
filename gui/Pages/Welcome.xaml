@@ -4,12 +4,12 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="8,8,8,8">
-            <TextBlock Text="Welcome to the ConfigMgr Lab Builder"
+            <TextBlock Text="Welcome to ConfigMgr Lab Builder"
                        FontSize="20" FontWeight="SemiBold"
                        Margin="0,0,0,8"/>
             <TextBlock TextWrapping="Wrap" FontSize="13"
                        Margin="0,0,0,8"
-                       xml:space="preserve"><Run>The HomeLab GUI is a thin wizard on top of the same </Run><Run FontFamily="Cascadia Code, Consolas, Courier New">Install-HomeLab</Run><Run> cmdlet you can run from the shell. The 1-liner stays primary; the GUI is additive.</Run></TextBlock>
+                       xml:space="preserve"><Run>The GUI is a thin wizard on top of the same </Run><Run FontFamily="Cascadia Code, Consolas, Courier New">Install-HomeLab</Run><Run> cmdlet you can run from the shell. The 1-liner stays primary; the GUI is additive.</Run></TextBlock>
 
             <TextBlock Text="Workflow"
                        FontSize="13" FontWeight="SemiBold"

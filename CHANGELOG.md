@@ -28,11 +28,35 @@ public API is untouched.
   `ReleaseNotes` refreshed. `ReleaseNotes` had been stale at v1.0.0.1
   since the 1.0 line.
 
+### Added
+
+- README now carries two evidence screenshots from a real build:
+  `lab-hyperv-4vm-running.png` (the 4-VM `two-clients` topology idling
+  at 11 GB assigned across all four VMs, 0-3% CPU) under Hardware, and
+  `lab-console-site-status.png` (all seven site systems reporting OK in
+  the console) at the top of After deployment.
+
 ### Fixed
 
 - GUI version badges in `MainWindow.xaml` and the Options "About"
   panel were hardcoded to `v1.0.0` and never updated across the 1.1,
   1.2, and 1.3 releases. Both now read `v1.4.0`.
+- **Sidebar title clipped to "ConfigMgr Lab Build."** The new name is
+  longer than "MECM HomeLab" and overflowed the fixed 220px sidebar at
+  20pt bold, silently truncating the product's own name in its own
+  chrome. The title now wraps to two lines. Caught on the first
+  post-rebrand screenshot pass.
+- **`Write-LabDeploySummary` GUI-logs line never rendered for anyone
+  but the author.** The path was the literal
+  `C:\projects\mecm-homelab\gui\Logs`. Because it sat behind a
+  `Test-Path` guard, any clone at a different path simply lost the line
+  with no error to explain the absence -- and the folder rename in this
+  release would have broken it for the author too. Replaced with
+  `Get-LabGuiLogPath`, which derives `<repo>\gui\Logs` from the module's
+  own location, the same way `start-homelab-gui.ps1` derives its
+  `$script:LogDir`. Nine tests in `Tests/Unit/GuiLogPath.Tests.ps1`
+  cover the derivation, the three not-a-log-directory cases, and both
+  branches of the summary line.
 
 ### Unchanged (deliberately)
 

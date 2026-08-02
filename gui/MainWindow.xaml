@@ -84,7 +84,12 @@
         <DockPanel Grid.Column="0" LastChildFill="True">
             <!-- App title block -->
             <StackPanel DockPanel.Dock="Top" Margin="12,16,12,12">
+                <!-- Wraps to two lines: "ConfigMgr Lab Builder" overflows the
+                     fixed 220px sidebar at 20pt bold and was clipping to
+                     "ConfigMgr Lab Build". -->
                 <TextBlock Text="ConfigMgr Lab Builder"
+                           TextWrapping="Wrap"
+                           LineHeight="24" LineStackingStrategy="BlockLineHeight"
                            FontSize="20" FontWeight="Bold"
                            Foreground="{DynamicResource MahApps.Brushes.Text}"/>
                 <TextBlock x:Name="lblVersion"
