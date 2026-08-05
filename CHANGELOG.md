@@ -35,6 +35,15 @@ public API is untouched.
   at 11 GB assigned across all four VMs, 0-3% CPU) under Hardware, and
   `lab-console-site-status.png` (all seven site systems reporting OK in
   the console) at the top of After deployment.
+- **`docs/getting-started.md`: new beginner walkthrough.** Covers
+  host prep and media staging once, then both deploy paths -- the GUI
+  wizard, page by page, and the `Install-HomeLab` one-liner as the
+  no-GUI alternative -- plus what a healthy first deploy looks like
+  and where to go when it isn't. Linked from the README's GUI
+  walkthrough section. Four wizard-page screenshots
+  (`gui-post-cm.png`, `gui-review.png`, `gui-deploy.png`,
+  `gui-options.png`) aren't captured yet; each spot carries an HTML
+  comment naming the exact file to drop in.
 
 ### Changed (screenshots)
 

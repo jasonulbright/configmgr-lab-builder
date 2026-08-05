@@ -94,6 +94,10 @@ Both paths land at the same place. Pick whichever fits the moment.
 
 ## GUI walkthrough
 
+New to the tool? [docs/getting-started.md](docs/getting-started.md)
+walks through prerequisites and every wizard page in more detail than
+the summary below.
+
 Launch the wizard from an elevated PowerShell 7 session, working
 directory at the project root:
 
