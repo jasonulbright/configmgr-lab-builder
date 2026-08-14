@@ -123,6 +123,7 @@
                     <Button x:Name="btnWelcome"  Style="{StaticResource WorkflowButtonStyle}" Content="Welcome"/>
                     <Button x:Name="btnTemplate" Style="{StaticResource WorkflowButtonStyle}" Content="Pick template"/>
                     <Button x:Name="btnHostCheck" Style="{StaticResource WorkflowButtonStyle}" Content="Host check"/>
+                    <Button x:Name="btnMedia"    Style="{StaticResource WorkflowButtonStyle}" Content="Media"/>
                     <Button x:Name="btnTopology" Style="{StaticResource WorkflowButtonStyle}" Content="Topology"/>
                     <Button x:Name="btnPostCm"   Style="{StaticResource WorkflowButtonStyle}" Content="Post-CM"/>
                     <Button x:Name="btnReview"   Style="{StaticResource WorkflowButtonStyle}" Content="Review"/>

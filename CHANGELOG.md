@@ -1,5 +1,41 @@
 # Changelog
 
+## [1.5.0] - 2026-08-14
+
+### Added
+
+- **`Test-LabMedia` cmdlet.** Read-only pre-flight over the LabSources
+  tree reporting every external asset the deploy needs -- the three eval
+  ISOs, the extracted ConfigMgr media, the ADK and WinPE offline
+  layouts, the VC++ redistributable pair, the version-pinned ODBC MSI,
+  and the optional CM prerequisite cache. Resolution rules mirror
+  `Install-HomeLab`'s defaults exactly (same ISO wildcard patterns,
+  canonical-subfolder-then-flat fallbacks, nested `SMSSETUP`
+  detection), so the report and the engine cannot disagree about what
+  counts as staged.
+- **GUI Media wizard page** between Host check and Topology, rendering
+  the `Test-LabMedia` report one row per asset. Missing direct-link
+  assets get a **Download** button that fetches into the expected
+  folder in a background runspace (the ADK/WinPE rows download the
+  bootstrapper and run its `/quiet /layout`); every fetched binary is
+  kept -- or executed, for the bootstrappers -- only after its
+  Authenticode signature verifies as Valid and Microsoft-signed.
+  Sign-in-gated ISOs get a
+  **Web page** button that opens the vendor download in the default
+  browser; every row gets a **Folder** button that creates and opens
+  the expected location in Explorer.
+- **Review page media gate.** A media pane on the Review page lists any
+  missing required assets and disables Deploy until a re-check passes --
+  previously a missing ISO surfaced only as a mid-deploy phase throw,
+  and a missing ADK layout was skipped silently and doomed Phase 08.
+
+### Fixed
+
+- **Host check no longer claims an ISO catalog scan.** `Test-HostPrereq`
+  never checked media; the page text, README, and getting-started guide
+  said it did. Media checking now actually exists, on its own page, and
+  every reference points there.
+
 ## [1.4.1] - 2026-08-14
 
 Bug-fix release. Fixes [#1](https://github.com/jasonulbright/configmgr-lab-builder/issues/1),

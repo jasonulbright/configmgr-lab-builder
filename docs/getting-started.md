@@ -56,11 +56,14 @@ winget install Microsoft.PowerShell
 
 ### 3. Download the installation media
 
-The engine builds VMs from real Windows/SQL/ConfigMgr media -- it
-doesn't download anything for you. Create the folders below (if they
-don't already exist) and place each file. This is the step most
-worth double-checking before you launch the wizard, since a missing
-file is the single most common first-run failure.
+The engine builds VMs from real Windows/SQL/ConfigMgr media. Create
+the folders below (if they don't already exist) and place each file.
+This is the step most worth double-checking before you launch the
+wizard, since a missing file is the single most common first-run
+failure. If you'd rather not do this by hand: the wizard's
+[Media page](#step-4-media) checks all of it, downloads the
+direct-link items for you (ADK, WinPE, VC++, ODBC), and opens the
+sign-in-gated download pages for the rest.
 
 - [ ] **Windows Server 2025 Eval ISO** -> `C:\LabSources\ISOs\`
       ([download](https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2025))
@@ -87,9 +90,9 @@ file is the single most common first-run failure.
 You do **not** need to download an MSOLEDB driver -- CM 2509 setup
 installs its own and the engine skips that step by default.
 
-The wizard's [Host check](#step-3-host-check) page scans for all of
-this and tells you exactly what it can't find, so it's fine to move
-on even if you're not 100% sure everything landed in the right spot.
+The wizard's [Media page](#step-4-media) scans for all of this and
+tells you exactly what it can't find, so it's fine to move on even
+if you're not 100% sure everything landed in the right spot.
 
 ### 4. Know that you'll need Administrator
 
@@ -193,28 +196,55 @@ Click **Next: Host check**.
 ![Host check page](screenshots/gui-host-check.png)
 
 Click **Run host check**. This is the wizard actually testing your
-machine and your staged media -- PowerShell version, Hyper-V, RAM,
-free disk, virtualization extensions, and whether it can find every
-file from the [download checklist](#3-download-the-installation-media)
-above. Each row gets a checkmark or an X; a summary line above the
-grid tells you pass/fail at a glance.
+machine -- PowerShell version, Hyper-V, RAM, free disk,
+virtualization extensions, elevation. Each row gets a checkmark or
+an X; a summary line above the grid tells you pass/fail at a
+glance. (Your staged media gets its own page next.)
 
 **If something fails**, the Detail column names exactly what's wrong.
-The three most common first-run misses:
+The two most common first-run misses:
 
 | Detail says | Fix |
 |---|---|
 | Hyper-V not enabled, reboot required | Reboot the host, then re-run the wizard -- the engine already turned the feature on, it just needs the restart to take effect. |
-| Can't find an ISO / SoftwarePackages file | Re-check the path and filename against the [checklist](#3-download-the-installation-media). The match is a wildcard, so the exact filename doesn't matter, but the folder does. |
 | TrustedHosts / WinRM check failed | The check gives you the exact `Set-Item` command to run in an elevated window. Run it as shown, then re-run the check. |
 
 Warnings (shown but not blocking) are fine to proceed past -- e.g.
 RAM above the minimum but below the recommended number. Only a red
 X blocks **Next**.
 
+Click **Next: Media**.
+
+### Step 4: Media
+
+Every external file from the
+[download checklist](#3-download-the-installation-media), checked
+against your `LabSourcesRoot`, one row each. A checkmark means found
+(the Detail column shows the file it matched and its size); an X
+means missing. Each missing row offers what fits:
+
+- **Download** -- for the direct-link assets (ODBC MSI, both VC++
+  redistributables, the ADK and WinPE offline layouts), the wizard
+  fetches straight into the correct folder. The two layouts run the
+  Microsoft bootstrapper's `/quiet /layout`, which downloads a
+  multi-gigabyte payload -- start those and let them run.
+- **Web page** -- the three eval ISOs and the ConfigMgr media need a
+  Microsoft sign-in, so the wizard opens the download page in your
+  browser instead. Save the file into the folder the Detail column
+  names (the **Folder** button opens it in Explorer, creating it if
+  needed).
+- **Re-check** rescans after you've staged anything.
+
+The "CM prerequisite offline cache" row is optional -- without it,
+CM setup downloads its prerequisites live during Phase 08. Missing
+required rows here will keep the Review page's Deploy button
+disabled, so this is the page to finish before moving on. The
+filename match is a wildcard: the exact ISO name doesn't matter, the
+folder does.
+
 Click **Next: Topology**.
 
-### Step 4: Topology
+### Step 5: Topology
 
 ![Topology editor](screenshots/gui-topology.png)
 
@@ -231,7 +261,7 @@ and so on. Fix anything it flags before moving on.
 
 Click **Next: Post-CM**.
 
-### Step 5: Post-CM
+### Step 6: Post-CM
 
 <!-- TODO screenshot: gui-post-cm.png missing, see shot list -->
 
@@ -253,18 +283,20 @@ against an already-built lab is quick (see
 
 Click **Next: Review**.
 
-### Step 6: Review
+### Step 7: Review
 
 <!-- TODO screenshot: gui-review.png missing, see shot list -->
 
-Three read-only panes: the topology you're about to build, the
-Post-CM options you selected, and the ordered list of phases the
-engine will run. This is your last chance to back out or go fix
-something -- nothing has been created yet.
+Read-only panes: the topology you're about to build, the Post-CM
+options you selected, the media check, and the ordered list of
+phases the engine will run. If any required media is still missing,
+the media pane lists exactly what and **Deploy stays disabled** --
+stage it, then click **Re-check media**. This is your last chance to
+back out or go fix something -- nothing has been created yet.
 
 Click **Deploy** to move to the final page.
 
-### Step 7: Deploy
+### Step 8: Deploy
 
 <!-- TODO screenshot: gui-deploy.png missing, see shot list -->
 

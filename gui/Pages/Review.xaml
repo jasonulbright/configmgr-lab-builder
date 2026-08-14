@@ -39,6 +39,17 @@
                          HorizontalScrollBarVisibility="Auto"
                          AcceptsReturn="True"/>
 
+                <TextBlock Text="Media" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <TextBox x:Name="txtReviewMedia"
+                         IsReadOnly="True"
+                         FontFamily="Cascadia Code, Consolas, Courier New"
+                         FontSize="11"
+                         BorderThickness="0"
+                         Margin="0,0,0,12"
+                         TextWrapping="NoWrap"
+                         HorizontalScrollBarVisibility="Auto"
+                         AcceptsReturn="True"/>
+
                 <TextBlock Text="Deploy plan" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,4"/>
                 <TextBox x:Name="txtReviewPlan"
                          IsReadOnly="True"
@@ -55,6 +66,13 @@
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="8,12,8,8">
+            <Button x:Name="btnReviewMediaRecheck"
+                    Style="{DynamicResource MahApps.Styles.Button.Square}"
+                    Content="Re-check media"
+                    MinWidth="130"
+                    Height="32"
+                    Margin="0,0,8,0"
+                    Controls:ControlsHelper.ContentCharacterCasing="Normal"/>
             <Button x:Name="btnReviewBack"
                     Style="{DynamicResource MahApps.Styles.Button.Square}"
                     Content="Back"

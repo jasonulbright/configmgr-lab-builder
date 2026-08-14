@@ -69,7 +69,10 @@ is not enough if your desktop session holds the balance.
 
 Stage these external assets before running. Paths default under
 `C:\LabSources` (overridable in `config.psd1` or via the GUI
-Options panel):
+Options panel). `Test-LabMedia` reports what is staged and what is
+missing; the GUI's Media page runs the same check, downloads the
+direct-link assets into the right folders, and opens the vendor
+page for the sign-in-gated ISOs:
 
 | File | Default path | Source |
 |---|---|---|
@@ -116,7 +119,7 @@ animated and the log drawer streams live.
 
 ### 1. Welcome
 
-Pictured at the top of this README. Cover page with the six-step
+Pictured at the top of this README. Cover page with the seven-step
 workflow summary. No input; click **Pick template** in the sidebar
 (or Next) to begin.
 
@@ -133,16 +136,36 @@ Radio-button picker for the seven built-in topologies (see
 
 ![Host check page](docs/screenshots/gui-host-check.png)
 
-Runs `Test-HostPrereq` plus an ISO catalog scan and reports each
-check (PowerShell version, Hyper-V feature state, RAM, free disk,
-virtualisation extensions, elevation, ISO discovery) in a status
-grid with a glyph-only status column (no red/green per the
-brand spec).
+Runs `Test-HostPrereq` and reports each check (PowerShell version,
+Hyper-V feature state, RAM, free disk, virtualisation extensions,
+elevation) in a status grid with a glyph-only status column (no
+red/green per the brand spec). Staged media has its own page next.
 
 Failures here block the deploy; warnings (e.g. RAM below
 recommended but above minimum) do not.
 
-### 4. Topology
+### 4. Media
+
+Presence check for every external asset in the table under
+[Software prerequisites](#software-prerequisites), run against the
+configured `LabSourcesRoot`. Each row shows a status glyph, what was
+found (file name and size) or what is expected, and its actions:
+
+- **Download** -- fetches the direct-link assets straight into the
+  expected folder: the ODBC MSI, both VC++ redistributables, and the
+  ADK / WinPE offline layouts (downloads the bootstrapper, then runs
+  its `/quiet /layout` -- the layouts are multi-GB, the log drawer
+  tracks progress).
+- **Web page** -- eval ISOs and the ConfigMgr media sit behind a
+  Microsoft sign-in, so these open the vendor download page in the
+  default browser instead.
+- **Folder** -- opens the expected location in Explorer, creating it
+  first so files can be dropped straight in.
+
+The optional CM prerequisite cache is listed but never blocks
+anything. **Re-check** rescans after staging.
+
+### 5. Topology
 
 ![Topology editor](docs/screenshots/gui-topology.png)
 
@@ -153,7 +176,7 @@ override the template defaults: `Name`, `Roles` (comma-separated),
 the engine uses at config-load time -- IPs in the network prefix,
 exactly one DomainController, MinMemory <= MaxMemory, and so on.
 
-### 5. Post-CM
+### 6. Post-CM
 
 Optional day-2 customizations applied after the site is healthy.
 Each section is independent; uncheck to skip:
@@ -173,13 +196,16 @@ Each section is independent; uncheck to skip:
   and a `Build Win11` task sequence stub
   (`InstallOperatingSystemImage` TS).
 
-### 6. Review
+### 7. Review
 
-Three read-only summary panes: resolved topology, post-CM
-customizations selected, and the deploy plan (phases that will
-run, in order). Last chance to back out.
+Read-only summary panes: resolved topology, post-CM customizations
+selected, the media check, and the deploy plan (phases that will
+run, in order). **Deploy stays disabled while any required media
+asset is missing** -- the pane lists exactly what is absent, and
+**Re-check media** re-runs the scan after staging. Last chance to
+back out.
 
-### 7. Deploy
+### 8. Deploy
 
 Click **Start deploy**. The wizard hands the resolved config to
 `Install-HomeLab` running in a background runspace. The page

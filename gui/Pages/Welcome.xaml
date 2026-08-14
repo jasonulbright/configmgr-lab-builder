@@ -17,15 +17,17 @@
             <TextBlock TextWrapping="Wrap" FontSize="12">
                 <Run>1. Pick a template (default / split-sql / role-per-server / aio / cas-2-dps / cas-role-per-server) or load a custom config.psd1.</Run>
                 <LineBreak/>
-                <Run>2. Run a host pre-check (Hyper-V feature, RAM, free disk, virt extensions, ISO catalog).</Run>
+                <Run>2. Run a host pre-check (Hyper-V feature, RAM, free disk, virt extensions, elevation).</Run>
                 <LineBreak/>
-                <Run>3. Customise the topology (per-VM CPU / memory / role assignment).</Run>
+                <Run>3. Verify the staged media (ISOs, ConfigMgr media, ADK layouts, drivers) -- download what's missing from here.</Run>
                 <LineBreak/>
-                <Run>4. Configure post-CM customizations (collections, MWs, deployments, drivers).</Run>
+                <Run>4. Customise the topology (per-VM CPU / memory / role assignment).</Run>
                 <LineBreak/>
-                <Run>5. Review the resolved config + deploy plan.</Run>
+                <Run>5. Configure post-CM customizations (collections, MWs, deployments, drivers).</Run>
                 <LineBreak/>
-                <Run>6. Watch the deploy live in the log drawer.</Run>
+                <Run>6. Review the resolved config + deploy plan.</Run>
+                <LineBreak/>
+                <Run>7. Watch the deploy live in the log drawer.</Run>
             </TextBlock>
 
             <TextBlock Text="Notes"

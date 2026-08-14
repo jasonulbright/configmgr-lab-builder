@@ -1,6 +1,8 @@
 @{
     RootModule        = 'HomeLab.psm1'
-    ModuleVersion     = '1.4.1'
+    ModuleVersion     = '1.5.0'
+    # 1.5.0: Test-LabMedia pre-flight + GUI Media wizard page (staged-media
+    #        check, per-item download/open-folder actions, deploy gate).
     # 1.4.1: create the CM prereq download folder when no offline cache is
     #        staged; recognise CM 2509's terminal failure banner.
     # 1.4.0: rebrand to ConfigMgr Lab Builder. Product name only -- the module
@@ -21,6 +23,7 @@
         'Start-HomeLab'
         'Stop-HomeLab'
         'Test-HomeLab'
+        'Test-LabMedia'
         'Connect-HomeLabVM'
         'Enter-HomeLabSession'
     )

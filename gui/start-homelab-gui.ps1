@@ -224,7 +224,7 @@ $script:bdModuleBand = $window.FindName('bdModuleBand')
 $script:bdStatusBar  = $window.FindName('bdStatusBar')
 
 $script:SidebarButtons = @(
-    'btnWelcome','btnTemplate','btnHostCheck','btnTopology',
+    'btnWelcome','btnTemplate','btnHostCheck','btnMedia','btnTopology',
     'btnPostCm','btnReview','btnDeploy','btnOptions'
 ) | ForEach-Object { $window.FindName($_) } | Where-Object { $_ }
 
@@ -679,6 +679,7 @@ function Load-Page {
         switch ($Name) {
             'Template'  { Wire-TemplatePage  -Page $page }
             'HostCheck' { Wire-HostCheckPage -Page $page }
+            'Media'     { Wire-MediaPage     -Page $page }
             'Topology'  { Wire-TopologyPage  -Page $page }
             'PostCm'    { Wire-PostCmPage    -Page $page }
             'Review'    { Wire-ReviewPage    -Page $page }
@@ -713,7 +714,7 @@ function Wire-TemplatePage {
                 }
             }
             Add-LogLine ("Template selected: {0}" -f $script:SelectedTemplate)
-            Load-Page -Name 'HostCheck' -Title 'Host check' -Subtitle 'Hyper-V, RAM, free disk, virt extensions, ISO catalog'
+            Load-Page -Name 'HostCheck' -Title 'Host check' -Subtitle 'Hyper-V, RAM, free disk, virt extensions, elevation'
         })
     }
 }
@@ -840,9 +841,274 @@ function Wire-HostCheckPage {
     }
     if ($btnNext) {
         $btnNext.Add_Click({
+            Load-Page -Name 'Media' -Title 'Media' -Subtitle 'Required ISOs and installers, staged and verified'
+        })
+    }
+}
+
+# ---- Media page: staged-asset pre-flight -------------------------------
+# Test-LabMedia (engine) is the single source of truth for what counts as
+# staged; this page only renders its report and remediates: direct-link
+# assets download straight into the expected folder, registration-gated
+# ISOs hand off to the default browser, and Folder opens the target in
+# Explorer (creating it first so the user never lands in a missing path).
+
+$script:MediaFetchRunspace = $null
+$script:MediaFetchPS       = $null
+$script:MediaFetchTimer    = $null
+$script:MediaFetchHandle   = $null
+$script:MediaFetchState    = $null
+$script:MediaCheckReport   = $null
+
+function Get-MediaLabRoot {
+    $root = ''
+    try { $root = [string]$script:GuiSettings.Paths.LabSourcesRoot } catch { $root = '' }
+    if ([string]::IsNullOrWhiteSpace($root)) { $root = 'C:\LabSources' }
+    return $root.Trim()
+}
+
+function Update-MediaPage {
+    param([System.Windows.Controls.UserControl]$Page)
+    if (-not $Page) { return }
+
+    $root = Get-MediaLabRoot
+    try {
+        $report = Test-LabMedia -LabSourcesRoot $root
+    } catch {
+        Add-LogLine ("Media check failed: {0}" -f $_.Exception.Message) 'ERROR'
+        return
+    }
+    $script:MediaCheckReport = $report
+
+    $rows = foreach ($item in $report.Items) {
+        $glyph = if ($item.Found) { [char]0x2713 }
+                 elseif ($item.Required) { [char]0x2717 }
+                 else { [char]0x2013 }
+        $canAuto = (@($item.AutoFiles).Count -gt 0) -or [bool]$item.LayoutSetupUrl
+        $getLabel = ''
+        $getTag = ''
+        if (-not $item.Found) {
+            if ($canAuto) { $getLabel = 'Download'; $getTag = 'get:' + $item.Id }
+            elseif ($item.DownloadUrl) { $getLabel = 'Web page'; $getTag = 'web:' + $item.Id }
+        }
+        [pscustomobject]@{
+            Glyph         = [string]$glyph
+            Name          = [string]$item.Name
+            Detail        = [string]$item.Detail
+            GetLabel      = $getLabel
+            GetTag        = $getTag
+            GetVisibility = if ($getLabel) { 'Visible' } else { 'Collapsed' }
+            DirTag        = 'dir:' + $item.Id
+        }
+    }
+
+    $grid = $Page.FindName('dgMedia')
+    if ($grid) { $grid.ItemsSource = @($rows) }
+
+    $requiredTotal = @($report.Items | Where-Object Required).Count
+    $staged = $requiredTotal - $report.RequiredMissing
+    $summary = $Page.FindName('txtMediaSummary')
+    if ($summary) {
+        $summary.Text = if ($report.Pass) {
+            "All $requiredTotal required assets staged under $root."
+        } else {
+            "$staged of $requiredTotal required assets staged under $root; $($report.RequiredMissing) missing."
+        }
+    }
+    Add-LogLine ("Media check: {0}/{1} required staged under {2}" -f $staged, $requiredTotal, $root)
+}
+
+function Initialize-MediaFetchRunspace {
+    if ($script:MediaFetchRunspace -and $script:MediaFetchRunspace.RunspaceStateInfo.State -eq 'Opened') { return }
+    $script:MediaFetchRunspace = [runspacefactory]::CreateRunspace()
+    $script:MediaFetchRunspace.ApartmentState = 'STA'
+    $script:MediaFetchRunspace.ThreadOptions  = 'ReuseThread'
+    $script:MediaFetchRunspace.Open()
+}
+
+function Start-MediaFetchAsync {
+    param([Parameter(Mandatory)][string]$ItemId)
+
+    if ($script:MediaFetchPS) {
+        Add-LogLine 'A media download is already running; wait for it to finish.' 'WARN'
+        return
+    }
+    $item = $script:MediaCheckReport.Items | Where-Object { $_.Id -eq $ItemId }
+    if (-not $item) { return }
+
+    $page = $script:CurrentPage
+    $grid = if ($page) { $page.FindName('dgMedia') } else { $null }
+    $btnRecheck = if ($page) { $page.FindName('btnMediaRecheck') } else { $null }
+    if ($grid) { $grid.IsEnabled = $false }
+    if ($btnRecheck) { $btnRecheck.IsEnabled = $false }
+
+    Add-LogLine ("Media fetch starting: {0}" -f $item.Name)
+    Initialize-MediaFetchRunspace
+
+    $script:MediaFetchState = [hashtable]::Synchronized(@{
+        Done     = $false
+        ErrorMsg = $null
+        Message  = ('Starting {0}...' -f $item.Name)
+    })
+
+    $script:MediaFetchPS = [powershell]::Create()
+    $script:MediaFetchPS.Runspace = $script:MediaFetchRunspace
+    [void]$script:MediaFetchPS.AddScript({
+        param($Item, $State)
+        $ProgressPreference = 'SilentlyContinue'
+
+        # A fetched binary is kept (or executed, for the ADK bootstrappers)
+        # only after its Authenticode signature verifies as Valid and
+        # Microsoft-signed; anything else is deleted and reported.
+        function Confirm-FetchedSignature {
+            param([string]$Path)
+            $sig = Get-AuthenticodeSignature -FilePath $Path
+            $subject = if ($sig.SignerCertificate) { $sig.SignerCertificate.Subject } else { '' }
+            if ($sig.Status -ne 'Valid' -or $subject -notmatch 'O=Microsoft Corporation') {
+                Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+                throw ('signature verification failed for {0}: {1}' -f (Split-Path -Path $Path -Leaf), $sig.Status)
+            }
+        }
+
+        try {
+            foreach ($f in @($Item.AutoFiles)) {
+                $dir = Split-Path -Path $f.Target -Parent
+                New-Item -ItemType Directory -Force -Path $dir | Out-Null
+                $leaf = Split-Path -Path $f.Target -Leaf
+                $State.Message = ('Downloading {0}...' -f $leaf)
+                $tmp = $f.Target + '.download'
+                Invoke-WebRequest -Uri $f.Url -OutFile $tmp -ErrorAction Stop
+                Confirm-FetchedSignature -Path $tmp
+                Move-Item -LiteralPath $tmp -Destination $f.Target -Force
+            }
+            if ($Item.LayoutSetupUrl) {
+                New-Item -ItemType Directory -Force -Path $Item.LayoutDir | Out-Null
+                $layoutParent = Split-Path -Path $Item.LayoutDir -Parent
+                $setup = Join-Path $layoutParent $Item.LayoutSetupName
+                $State.Message = ('Downloading {0}...' -f $Item.LayoutSetupName)
+                $tmp = $setup + '.download'
+                Invoke-WebRequest -Uri $Item.LayoutSetupUrl -OutFile $tmp -ErrorAction Stop
+                Confirm-FetchedSignature -Path $tmp
+                Move-Item -LiteralPath $tmp -Destination $setup -Force
+                $State.Message = ('Running {0} /layout -- the payload is multi-GB, this takes a while...' -f $Item.LayoutSetupName)
+                $p = Start-Process -FilePath $setup -ArgumentList '/quiet', '/layout', $Item.LayoutDir -PassThru -Wait
+                if ($p.ExitCode -ne 0) {
+                    throw ('{0} exited with code {1}' -f $Item.LayoutSetupName, $p.ExitCode)
+                }
+            }
+        } catch {
+            $State.ErrorMsg = $_.Exception.Message
+        } finally {
+            $State.Done = $true
+        }
+    }).AddArgument($item).AddArgument($script:MediaFetchState)
+
+    $script:MediaFetchHandle = $script:MediaFetchPS.BeginInvoke()
+
+    $script:MediaFetchTimer = New-Object System.Windows.Threading.DispatcherTimer
+    $script:MediaFetchTimer.Interval = [TimeSpan]::FromMilliseconds(300)
+    $script:MediaFetchTimer.Add_Tick({
+        $st = $script:MediaFetchState
+        $page = $script:CurrentPage
+        $summary = if ($page) { $page.FindName('txtMediaSummary') } else { $null }
+        if (-not $st.Done) {
+            if ($summary) { $summary.Text = [string]$st.Message }
+            return
+        }
+
+        $script:MediaFetchTimer.Stop()
+        try { [void]$script:MediaFetchPS.EndInvoke($script:MediaFetchHandle) } catch { $null = $_ }
+        try { $script:MediaFetchPS.Dispose() } catch { $null = $_ }
+        $script:MediaFetchPS = $null
+
+        if ($st.ErrorMsg) {
+            Add-LogLine ("Media fetch failed: {0}" -f $st.ErrorMsg) 'ERROR'
+        } else {
+            Add-LogLine 'Media fetch finished.'
+        }
+
+        # Only refresh if the Media page is still frontmost; a fetch is
+        # allowed to outlive the page (the user can keep clicking through
+        # the wizard while a layout run downloads).
+        if ($page -and $page.FindName('dgMedia')) {
+            $grid = $page.FindName('dgMedia')
+            $btnRecheck = $page.FindName('btnMediaRecheck')
+            if ($grid) { $grid.IsEnabled = $true }
+            if ($btnRecheck) { $btnRecheck.IsEnabled = $true }
+            Update-MediaPage -Page $page
+            if ($st.ErrorMsg -and $summary) {
+                $summary.Text = ('Download failed: {0}' -f $st.ErrorMsg)
+            }
+        }
+    })
+    $script:MediaFetchTimer.Start()
+}
+
+function Wire-MediaPage {
+    param([System.Windows.Controls.UserControl]$Page)
+
+    $btnRecheck = $Page.FindName('btnMediaRecheck')
+    if ($btnRecheck) {
+        $btnRecheck.Add_Click({ Update-MediaPage -Page $script:CurrentPage })
+    }
+
+    $grid = $Page.FindName('dgMedia')
+    if ($grid) {
+        $grid.AddHandler(
+            [System.Windows.Controls.Primitives.ButtonBase]::ClickEvent,
+            [System.Windows.RoutedEventHandler]{
+                param($snd, $e)
+                $btn = $e.OriginalSource -as [System.Windows.Controls.Primitives.ButtonBase]
+                if (-not $btn -or -not $btn.Tag) { return }
+                $parts = ([string]$btn.Tag) -split ':', 2
+                if ($parts.Count -ne 2) { return }
+                $action = $parts[0]
+                $itemId = $parts[1]
+                $item = $script:MediaCheckReport.Items | Where-Object { $_.Id -eq $itemId }
+                if (-not $item) { return }
+                $e.Handled = $true
+
+                switch ($action) {
+                    'dir' {
+                        try {
+                            New-Item -ItemType Directory -Force -Path $item.TargetDir | Out-Null
+                            Start-Process -FilePath 'explorer.exe' -ArgumentList $item.TargetDir
+                            Add-LogLine ("Opened folder: {0}" -f $item.TargetDir)
+                        } catch {
+                            Add-LogLine ("Open folder failed: {0}" -f $_.Exception.Message) 'ERROR'
+                        }
+                    }
+                    'web' {
+                        try {
+                            Start-Process $item.DownloadUrl
+                            Add-LogLine ("Opened download page for {0} in the default browser." -f $item.Name)
+                        } catch {
+                            Add-LogLine ("Open download page failed: {0}" -f $_.Exception.Message) 'ERROR'
+                        }
+                    }
+                    'get' {
+                        Start-MediaFetchAsync -ItemId $itemId
+                    }
+                }
+            }
+        )
+    }
+
+    $btnBack = $Page.FindName('btnMediaBack')
+    if ($btnBack) {
+        $btnBack.Add_Click({
+            Load-Page -Name 'HostCheck' -Title 'Host check' -Subtitle 'Hyper-V, RAM, free disk, virt extensions, elevation'
+        })
+    }
+    $btnNext = $Page.FindName('btnMediaNext')
+    if ($btnNext) {
+        $btnNext.Add_Click({
             Load-Page -Name 'Topology' -Title 'Topology' -Subtitle 'Per-VM CPU / memory / role assignment'
         })
     }
+
+    # The scan is local file checks only -- cheap enough to run on entry.
+    Update-MediaPage -Page $Page
 }
 
 function Get-TopologyRows {
@@ -908,7 +1174,7 @@ function Wire-TopologyPage {
     }
     if ($btnBack) {
         $btnBack.Add_Click({
-            Load-Page -Name 'HostCheck' -Title 'Host check' -Subtitle 'Hyper-V, RAM, free disk, virt extensions, ISO catalog'
+            Load-Page -Name 'Media' -Title 'Media' -Subtitle 'Required ISOs and installers, staged and verified'
         })
     }
     if ($btnNext) {
@@ -1046,6 +1312,51 @@ function Wire-ReviewPage {
             Load-Page -Name 'Deploy' -Title 'Deploy' -Subtitle 'Live deploy view'
         })
     }
+
+    $btnMediaRecheck = $Page.FindName('btnReviewMediaRecheck')
+    if ($btnMediaRecheck) {
+        $btnMediaRecheck.Add_Click({ Update-ReviewMediaGate })
+    }
+    Update-ReviewMediaGate
+}
+
+function Update-ReviewMediaGate {
+    # Deploy is gated on the same Test-LabMedia report the Media page
+    # renders: the engine throws for missing ISOs mid-phase and silently
+    # skips a missing ADK layout (dooming Phase 08), so letting Deploy
+    # start with required media absent just trades a button click for a
+    # late failure.
+    $page = $script:CurrentPage
+    if (-not $page) { return }
+    $txt       = $page.FindName('txtReviewMedia')
+    $btnDeploy = $page.FindName('btnReviewDeploy')
+    if (-not $txt -and -not $btnDeploy) { return }
+
+    $root = Get-MediaLabRoot
+    try {
+        $report = Test-LabMedia -LabSourcesRoot $root
+    } catch {
+        Add-LogLine ("Review media check failed: {0}" -f $_.Exception.Message) 'ERROR'
+        return
+    }
+
+    $requiredTotal = @($report.Items | Where-Object Required).Count
+    if ($txt) {
+        if ($report.Pass) {
+            $txt.Text = "All $requiredTotal required assets staged under $root."
+        } else {
+            $sb = [System.Text.StringBuilder]::new()
+            [void]$sb.AppendLine(("Deploy blocked -- {0} required asset(s) missing under {1}:" -f $report.RequiredMissing, $root))
+            foreach ($item in ($report.Items | Where-Object { $_.Required -and -not $_.Found })) {
+                [void]$sb.AppendLine(("  MISSING  {0}" -f $item.Name))
+            }
+            [void]$sb.AppendLine('')
+            [void]$sb.AppendLine('Stage them on the Media page, then Re-check media.')
+            $txt.Text = $sb.ToString().TrimEnd()
+        }
+    }
+    if ($btnDeploy) { $btnDeploy.IsEnabled = $report.Pass }
+    Add-LogLine ("Review media gate: pass={0} missing={1}" -f $report.Pass, $report.RequiredMissing)
 }
 
 $script:DeployPhases = @(
@@ -1634,7 +1945,8 @@ function Show-FolderPicker {
 # bindings.
 $window.FindName('btnWelcome').Add_Click(  { Load-Page -Name 'Welcome'   -Title 'Welcome'      -Subtitle 'Start here' })
 $window.FindName('btnTemplate').Add_Click( { Load-Page -Name 'Template'  -Title 'Pick template' -Subtitle 'Choose a built-in topology or load a custom config.psd1' })
-$window.FindName('btnHostCheck').Add_Click({ Load-Page -Name 'HostCheck' -Title 'Host check'   -Subtitle 'Hyper-V, RAM, free disk, virt extensions, ISO catalog' })
+$window.FindName('btnHostCheck').Add_Click({ Load-Page -Name 'HostCheck' -Title 'Host check'   -Subtitle 'Hyper-V, RAM, free disk, virt extensions, elevation' })
+$window.FindName('btnMedia').Add_Click(    { Load-Page -Name 'Media'     -Title 'Media'        -Subtitle 'Required ISOs and installers, staged and verified' })
 $window.FindName('btnTopology').Add_Click( { Load-Page -Name 'Topology'  -Title 'Topology'     -Subtitle 'Per-VM CPU / memory / role assignment' })
 $window.FindName('btnPostCm').Add_Click(   { Load-Page -Name 'PostCm'    -Title 'Post-CM'      -Subtitle 'Collections, deployments, MWs, driver categories' })
 $window.FindName('btnReview').Add_Click(   { Load-Page -Name 'Review'    -Title 'Review'       -Subtitle 'Resolved config + deploy plan' })
@@ -1653,6 +1965,16 @@ Add-LogLine ('GUI started; logs at {0}' -f $script:LogFile)
 Add-LogLine ('Settings loaded from {0}' -f $script:SettingsFile)
 
 $window.Add_Closing({
+    if ($script:MediaFetchTimer) { try { $script:MediaFetchTimer.Stop() } catch { $null = $_ } }
+    if ($script:MediaFetchPS) {
+        try { [void]$script:MediaFetchPS.Stop() } catch { $null = $_ }
+        try { $script:MediaFetchPS.Dispose() }   catch { $null = $_ }
+        $script:MediaFetchPS = $null
+    }
+    if ($script:MediaFetchRunspace) {
+        try { $script:MediaFetchRunspace.Close() }   catch { $null = $_ }
+        try { $script:MediaFetchRunspace.Dispose() } catch { $null = $_ }
+    }
     if ($script:HostCheckTimer) { try { $script:HostCheckTimer.Stop() } catch { $null = $_ } }
     if ($script:HostCheckPS) {
         try { [void]$script:HostCheckPS.Stop() } catch { $null = $_ }

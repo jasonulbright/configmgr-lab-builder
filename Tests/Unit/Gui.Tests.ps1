@@ -70,7 +70,7 @@ Describe 'MainWindow.xaml parses through XamlReader' {
             'lblLogOutput','txtLog','txtStatus',
             'moduleHost','txtModuleTitle','txtModuleSubtitle',
             'tglTheme','bdModuleBand','bdStatusBar',
-            'btnWelcome','btnTemplate','btnHostCheck','btnTopology',
+            'btnWelcome','btnTemplate','btnHostCheck','btnMedia','btnTopology',
             'btnPostCm','btnReview','btnDeploy','btnOptions'
         )
         foreach ($name in $expected) {
@@ -102,6 +102,7 @@ Describe 'S21 wizard pages parse through XamlReader' {
     $cases = @(
         @{ File = 'Template.xaml'  }
         @{ File = 'HostCheck.xaml' }
+        @{ File = 'Media.xaml'     }
         @{ File = 'Topology.xaml'  }
         @{ File = 'PostCm.xaml'    }
         @{ File = 'Review.xaml'    }
@@ -163,6 +164,26 @@ Describe 'Per-page named-control surfaces' {
         $page     = [System.Windows.Markup.XamlReader]::Load($reader)
         foreach ($n in 'btnHostCheckRun','txtHostCheckSummary','dgHostCheck','btnHostCheckBack','btnHostCheckNext') {
             $page.FindName($n) | Should -Not -BeNullOrEmpty -Because "HostCheck.xaml must expose '$n'"
+        }
+    }
+
+    It 'Media.xaml exposes the check grid + action controls' {
+        $xamlPath = Join-Path $script:pagesDir 'Media.xaml'
+        [xml]$xml = Get-Content -LiteralPath $xamlPath -Raw
+        $reader   = New-Object System.Xml.XmlNodeReader $xml
+        $page     = [System.Windows.Markup.XamlReader]::Load($reader)
+        foreach ($n in 'btnMediaRecheck','txtMediaSummary','dgMedia','btnMediaBack','btnMediaNext') {
+            $page.FindName($n) | Should -Not -BeNullOrEmpty -Because "Media.xaml must expose '$n'"
+        }
+    }
+
+    It 'Review.xaml exposes the media gate controls' {
+        $xamlPath = Join-Path $script:pagesDir 'Review.xaml'
+        [xml]$xml = Get-Content -LiteralPath $xamlPath -Raw
+        $reader   = New-Object System.Xml.XmlNodeReader $xml
+        $page     = [System.Windows.Markup.XamlReader]::Load($reader)
+        foreach ($n in 'txtReviewMedia','btnReviewMediaRecheck','btnReviewDeploy') {
+            $page.FindName($n) | Should -Not -BeNullOrEmpty -Because "Review.xaml must expose '$n'"
         }
     }
 

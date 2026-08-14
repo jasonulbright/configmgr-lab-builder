@@ -18,28 +18,28 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0"
-                   Text="Verify the host can stand the lab up. Click Run to invoke Test-HostPrereq. Staged media is checked on the next page."
+        <TextBlock x:Name="txtMediaIntro" Grid.Row="0"
+                   Text="The deploy needs these ISOs and installers staged before it starts. Download fetches the direct-link assets into the right folder; Web page opens the vendor download (eval ISOs need a Microsoft sign-in); Folder opens the expected location in Explorer."
                    FontSize="13"
                    TextWrapping="Wrap"
                    Margin="8,8,8,8"/>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="8,4,8,8">
-            <Button x:Name="btnHostCheckRun"
+            <Button x:Name="btnMediaRecheck"
                     Style="{DynamicResource MahApps.Styles.Button.Square.Accent}"
-                    Content="Run host check"
+                    Content="Re-check"
                     MinWidth="160"
                     Height="32"
                     Margin="0,0,8,0"
                     Controls:ControlsHelper.ContentCharacterCasing="Normal"/>
-            <TextBlock x:Name="txtHostCheckSummary"
-                       Text="Not run yet."
+            <TextBlock x:Name="txtMediaSummary"
+                       Text="Not checked yet."
                        FontSize="12"
                        VerticalAlignment="Center"
                        Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
         </StackPanel>
 
-        <DataGrid x:Name="dgHostCheck"
+        <DataGrid x:Name="dgMedia"
                   Grid.Row="2"
                   Margin="8,0,8,0"
                   AutoGenerateColumns="False"
@@ -62,12 +62,38 @@
             <DataGrid.CellStyle>
                 <Style TargetType="DataGridCell" BasedOn="{StaticResource MahApps.Styles.DataGridCell}">
                     <Setter Property="Padding" Value="6,0,6,0"/>
+                    <Setter Property="VerticalAlignment" Value="Center"/>
                 </Style>
             </DataGrid.CellStyle>
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Status" Binding="{Binding Glyph}" Width="48"/>
-                <DataGridTextColumn Header="Check" Binding="{Binding Name}" Width="220"/>
-                <DataGridTextColumn Header="Detail" Binding="{Binding Message}" Width="*"/>
+                <DataGridTextColumn Header="Status" Binding="{Binding Glyph}" Width="52"/>
+                <DataGridTextColumn Header="Asset" Binding="{Binding Name}" Width="230"/>
+                <DataGridTextColumn Header="Detail" Binding="{Binding Detail}" Width="*"/>
+                <DataGridTemplateColumn Header="Actions" Width="196" CanUserSort="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="{Binding GetLabel}"
+                                        Tag="{Binding GetTag}"
+                                        Visibility="{Binding GetVisibility}"
+                                        Style="{DynamicResource MahApps.Styles.Button.Square}"
+                                        MinWidth="86"
+                                        Height="24"
+                                        FontSize="11"
+                                        Margin="0,2,6,2"
+                                        Controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                                <Button Content="Folder"
+                                        Tag="{Binding DirTag}"
+                                        Style="{DynamicResource MahApps.Styles.Button.Square}"
+                                        MinWidth="62"
+                                        Height="24"
+                                        FontSize="11"
+                                        Margin="0,2,0,2"
+                                        Controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
 
@@ -75,16 +101,16 @@
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="8,12,8,8">
-            <Button x:Name="btnHostCheckBack"
+            <Button x:Name="btnMediaBack"
                     Style="{DynamicResource MahApps.Styles.Button.Square}"
                     Content="Back"
                     MinWidth="90"
                     Height="32"
                     Margin="0,0,8,0"
                     Controls:ControlsHelper.ContentCharacterCasing="Normal"/>
-            <Button x:Name="btnHostCheckNext"
+            <Button x:Name="btnMediaNext"
                     Style="{DynamicResource MahApps.Styles.Button.Square.Accent}"
-                    Content="Next: Media"
+                    Content="Next: Topology"
                     MinWidth="160"
                     Height="32"
                     Controls:ControlsHelper.ContentCharacterCasing="Normal"/>
