@@ -263,6 +263,23 @@ function Install-CMSite {
         $prereqHasFiles = $true
     }
 
+    # CM setup will not create PrerequisitePath. It requires the folder to
+    # exist even when it is doing the downloading itself
+    # (PrerequisiteComp=0) -- setup aborts in under a minute with
+    # "WARNING: Download folder C:\Install\CM-PreReqs does not exist" and
+    # "Failed to download product updates (0x80070003)" / ERROR_PATH_NOT_FOUND.
+    # The offline-cache push above creates it as a side effect, so this is
+    # only reachable when no cache was staged.
+    if (-not $prereqHasFiles) {
+        Write-LabLog "[$ComputerName] No offline prereq cache staged; setup will download its own (needs outbound HTTPS)" -Status INFO
+    }
+    Invoke-LabCommand -ComputerName $ComputerName -Credential $DomainCredential `
+        -Activity 'Ensure CM prereq download folder' -ScriptBlock {
+            if (-not (Test-Path 'C:\Install\CM-PreReqs')) {
+                New-Item -Path 'C:\Install\CM-PreReqs' -ItemType Directory -Force | Out-Null
+            }
+        } | Out-Null
+
     # 4. Build + push the unattend INI.
     $hostIni = Join-Path $env:TEMP ('homelab-cm-config-{0}.ini' -f $ComputerName)
     $iniPath = New-CMUnattendIni `

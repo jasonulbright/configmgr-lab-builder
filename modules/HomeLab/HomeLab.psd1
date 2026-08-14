@@ -1,6 +1,8 @@
 @{
     RootModule        = 'HomeLab.psm1'
-    ModuleVersion     = '1.4.0'
+    ModuleVersion     = '1.4.1'
+    # 1.4.1: create the CM prereq download folder when no offline cache is
+    #        staged; recognise CM 2509's terminal failure banner.
     # 1.4.0: rebrand to ConfigMgr Lab Builder. Product name only -- the module
     #        name and every exported function are unchanged.
     # 1.0.0.1: fix non-interactive deploy crash; restore default lab passwords.
@@ -30,7 +32,7 @@
         PSData = @{
             Tags         = @('ConfigMgr','ConfigurationManager','SCCM','HyperV','Lab','HomeLab')
             ProjectUri   = 'https://github.com/jasonulbright/configmgr-lab-builder'
-            ReleaseNotes = 'v1.4.0 renames the product to ConfigMgr Lab Builder and adopts Microsoft''s approved short name (ConfigMgr) throughout. No functional change: the module name, exported functions, config schema, and MCM site code are unchanged. See CHANGELOG.md.'
+            ReleaseNotes = 'v1.4.1 fixes a deterministic Phase 08 failure when no offline prerequisite cache is staged: CM setup''s download folder is now created unconditionally, and CM 2509''s terminal failure banner is recognised so setup failures surface immediately instead of timing out. See CHANGELOG.md.'
         }
     }
 }

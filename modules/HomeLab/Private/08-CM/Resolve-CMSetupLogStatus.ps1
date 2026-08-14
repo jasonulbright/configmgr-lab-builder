@@ -49,6 +49,12 @@ function Resolve-CMSetupLogStatus {
         'An error occurred while installing the database'
         'Setup was unable to verify Microsoft \.NET'
         'CRITICAL: Setup failed'
+        # CM 2509's own terminal banner. Word order differs from the
+        # 'Configuration Manager Setup failed' phrase above and none of the
+        # other patterns cover it, so a hard setup failure was classified
+        # InProgress and then buried under the full Wait-CMReady timeout.
+        'Failed Configuration Manager (\w+ )?Setup'
+        'Setup failed to download prerequisite components'
     )
 
     for ($i = $totalLines - 1; $i -ge 0; $i--) {

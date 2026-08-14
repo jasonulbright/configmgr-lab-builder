@@ -169,6 +169,53 @@ Describe 'Resolve-CMSetupLogStatus' {
         $r.Status | Should -Be 'Failure'
     }
 
+    # Verbatim from the log in issue #1. CM 2509's terminal banner reverses
+    # the word order of the 'Configuration Manager Setup failed' phrase and
+    # inserts "Server", so it matched none of the original patterns: a hard
+    # failure was reported InProgress and then hidden behind the full
+    # Wait-CMReady timeout.
+    It 'returns Failure for the CM 2509 terminal banner (issue #1)' {
+        $lines = @(
+            'WARNING: Download folder C:\Install\CM-PreReqs does not exist'
+            'ERROR: Failed to download product updates (0x80070003)'
+            '~~===================== Failed Configuration Manager Server Setup ====================='
+        )
+        $r = Resolve-CMSetupLogStatus -Lines $lines
+        $r.Status       | Should -Be 'Failure'
+        $r.MatchLine    | Should -Match 'Failed Configuration Manager Server Setup'
+        $r.ErrorContext | Should -Match 'Download folder'
+    }
+
+    It 'returns Failure for the prerequisite download failure (issue #1)' {
+        $r = Resolve-CMSetupLogStatus -Lines @(
+            'INFO: Checking for component updates...'
+            '~Setup failed to download prerequisite components.'
+        )
+        $r.Status | Should -Be 'Failure'
+    }
+
+    It 'matches the terminal banner regardless of the component word' {
+        foreach ($banner in @(
+            '~~===== Failed Configuration Manager Server Setup ====='
+            '~~===== Failed Configuration Manager Console Setup ====='
+            '~~===== Failed Configuration Manager Setup ====='
+        )) {
+            (Resolve-CMSetupLogStatus -Lines @($banner)).Status | Should -Be 'Failure'
+        }
+    }
+
+    It 'does not treat a successful run as failed (regression guard)' {
+        # Verified 2026-08-12: a healthy install logs InProgress at
+        # setup.exe exit and is recovered by Wait-CMReady. The new banner
+        # patterns must not flip that to Failure.
+        $lines = @(
+            'INFO: Checking for component updates...'
+            'INFO: Setup downloader FINISHED'
+            'INFO: Verified computer account by installing service SMS_ACCOUNT_TEST_SERVICE'
+        )
+        (Resolve-CMSetupLogStatus -Lines $lines).Status | Should -Be 'InProgress'
+    }
+
     It 'walks backwards: a later Success wins over an earlier Failure (re-run case)' {
         $lines = @(
             'CRITICAL: Configuration Manager Setup failed (first attempt)'
@@ -265,6 +312,62 @@ Describe 'Install-CMSite parameter validation + idempotency' {
         { Install-CMSite -ComputerName CM01 -DomainCredential (New-FakeCred) `
             -SiteCode 'TOOX' -SiteName 'x' -CMServerFqdn 'CM01.contoso.com' } |
             Should -Throw '*length*'
+    }
+
+    # Issue #1: with no offline cache staged the prereq push block is
+    # skipped entirely, so nothing created C:\Install\CM-PreReqs -- but the
+    # INI still points PrerequisitePath at it. CM setup does not create its
+    # own download folder and aborted with 0x80070003.
+    It 'creates the prereq download folder when no offline cache is staged (issue #1)' {
+        $script:sent = [System.Collections.Generic.List[string]]::new()
+
+        Mock Invoke-LabCommand -MockWith {
+            $text = if ($ScriptBlock) { $ScriptBlock.ToString() } else { '' }
+            $script:sent.Add($text)
+            if ($text -match 'SMS_Site')               { return [pscustomobject]@{ Installed = $false } }
+            if ($text -match 'setup\.exe')             { return $true }
+            if ($text -match 'Register-ScheduledTask') { return [pscustomobject]@{ ExitCode = 0 } }
+            return $null
+        }
+        Mock Copy-LabFile   { }
+        Mock Test-CMSetupLog { [pscustomobject]@{ Status = 'Success'; MatchLine = ''; ErrorContext = '' } }
+        Mock Wait-CMReady   { $true }
+
+        $r = Install-CMSite -ComputerName CM01 -DomainCredential (New-FakeCred) `
+            -SiteCode MCM -SiteName 'x' -CMServerFqdn 'CM01.contoso.com'
+
+        $r.Status | Should -Be 'Installed'
+        @($script:sent | Where-Object { $_ -match 'CM-PreReqs' -and $_ -match 'New-Item' }).Count |
+            Should -BeGreaterThan 0
+    }
+
+    It 'still creates the folder when an offline cache IS staged' {
+        $script:sent2 = [System.Collections.Generic.List[string]]::new()
+        $cache = Join-Path $TestDrive 'CM-Prereqs'
+        New-Item -Path $cache -ItemType Directory -Force | Out-Null
+        Set-Content -Path (Join-Path $cache 'payload.cab') -Value 'x'
+
+        Mock Invoke-LabCommand -MockWith {
+            $text = if ($ScriptBlock) { $ScriptBlock.ToString() } else { '' }
+            $script:sent2.Add($text)
+            if ($text -match 'SMS_Site')               { return [pscustomobject]@{ Installed = $false } }
+            if ($text -match 'setup\.exe')             { return $true }
+            if ($text -match 'Register-ScheduledTask') { return [pscustomobject]@{ ExitCode = 0 } }
+            # "already pushed" probe and the post-move "has files" probe
+            if ($text -match 'Get-ChildItem')          { return $true }
+            return $null
+        }
+        Mock Copy-LabFile   { }
+        Mock Test-CMSetupLog { [pscustomobject]@{ Status = 'Success'; MatchLine = ''; ErrorContext = '' } }
+        Mock Wait-CMReady   { $true }
+
+        $r = Install-CMSite -ComputerName CM01 -DomainCredential (New-FakeCred) `
+            -SiteCode MCM -SiteName 'x' -CMServerFqdn 'CM01.contoso.com' `
+            -CMPreReqsPath $cache
+
+        $r.Status | Should -Be 'Installed'
+        @($script:sent2 | Where-Object { $_ -match 'CM-PreReqs' -and $_ -match 'New-Item' }).Count |
+            Should -BeGreaterThan 0
     }
 }
 

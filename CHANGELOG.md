@@ -1,5 +1,45 @@
 # Changelog
 
+## [1.4.1] - 2026-08-14
+
+Bug-fix release. Fixes [#1](https://github.com/jasonulbright/configmgr-lab-builder/issues/1),
+reported by @ehindola.
+
+### Fixed
+
+- **Phase 08 failed deterministically when no offline prerequisite cache
+  was staged.** `Install-CMSite` only created `C:\Install\CM-PreReqs` as a
+  side effect of pushing an offline cache, inside `if ($CMPreReqsPath)`.
+  With no cache staged that block is skipped entirely -- but the generated
+  unattend INI still points `PrerequisitePath` at that folder, and CM setup
+  does not create its own download folder. Setup aborted in about 30
+  seconds with `WARNING: Download folder C:\Install\CM-PreReqs does not
+  exist` and `Failed to download product updates (0x80070003)`
+  (`ERROR_PATH_NOT_FOUND`). The folder is now ensured unconditionally
+  before the INI is written, on both the cached and download paths.
+
+  This branch was never exercised in testing: every verified end-to-end run
+  had `C:\LabSources\SoftwarePackages\CM-Prereqs` staged, so
+  `Install-HomeLab`'s auto-discovery always found a cache and the folder
+  always got created incidentally.
+
+- **A hard setup failure was reported as "in progress" and then hidden for
+  12 minutes.** `Resolve-CMSetupLogStatus` did not recognise CM 2509's own
+  terminal banner, `Failed Configuration Manager Server Setup` -- the word
+  order is reversed from the `Configuration Manager Setup failed` phrase it
+  did match, with `Server` inserted. Setup's failure therefore scored as
+  `InProgress`, the engine logged the benign "normal 2509 async handoff"
+  message, waited out the full `Wait-CMReady` timeout, and threw
+  `SMS_EXECUTIVE / CM provider did not come ready within 12m` -- pointing at
+  the wrong phase entirely. The banner and
+  `Setup failed to download prerequisite components` are now matched, so
+  this class of failure surfaces immediately with the real log context.
+
+  Success detection is deliberately unchanged: a healthy install logs
+  `InProgress` at `setup.exe` exit and is recovered by `Wait-CMReady`
+  (re-confirmed against a clean 2026-08-12 run), and a regression test now
+  pins that behaviour so the new patterns cannot flip it.
+
 ## [1.4.0] - 2026-08-02
 
 Rebrand only. No engine behaviour changes, no schema changes, and no
