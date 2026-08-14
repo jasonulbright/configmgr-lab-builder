@@ -1,5 +1,10 @@
 # ConfigMgr Lab Builder
 
+[![Latest release](https://img.shields.io/github/v/release/jasonulbright/configmgr-lab-builder?label=release)](https://github.com/jasonulbright/configmgr-lab-builder/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/jasonulbright/configmgr-lab-builder/total?label=downloads)](https://github.com/jasonulbright/configmgr-lab-builder/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D4)](#software-prerequisites)
+[![License](https://img.shields.io/github/license/jasonulbright/configmgr-lab-builder)](LICENSE)
+
 Native PowerShell + Hyper-V engine that builds a fully-functional
 Microsoft Configuration Manager 2509 home lab from a fresh
 Windows host. One cmdlet, one wizard, no external module dependencies.
