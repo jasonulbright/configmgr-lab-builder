@@ -48,10 +48,18 @@ Describe 'Test-LabMedia on an empty tree' {
         $cache.Found | Should -BeFalse
     }
 
-    It 'marks the SSRS installer optional so it never fails the gate' {
+    It 'marks the SSRS installer optional by default so it never fails the gate' {
         $ssrs = $script:report.Items | Where-Object Id -eq 'SsrsInstaller'
         $ssrs.Required | Should -BeFalse
         $ssrs.Found | Should -BeFalse
+    }
+
+    It '-RequireReporting makes the SSRS installer Required' {
+        $report = Test-LabMedia -LabSourcesRoot $script:root -RequireReporting
+        $ssrs = $report.Items | Where-Object Id -eq 'SsrsInstaller'
+        $ssrs.Required | Should -BeTrue
+        $report.RequiredMissing | Should -Be 9
+        $report.Pass | Should -BeFalse
     }
 
     It 'gives every required item a target folder and a download page' {

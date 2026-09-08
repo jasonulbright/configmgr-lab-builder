@@ -39,7 +39,22 @@ function Add-CMRoleSiteSystem {
     .PARAMETER AccountName
         Optional account to use for the site system (e.g.
         contoso\svc-CMSiteSystem). Default: site server's computer
-        account (uses the local-system context).
+        account.
+
+        Remote site-system installation with the default (no
+        AccountName) requires the site server's computer account to be a
+        local Administrator on SiteSystemServerFqdn -- this repo does not
+        yet provision that grant for any distributed topology (S15+;
+        matches the pre-existing gap in Add-CMRoleManagementPoint /
+        Add-CMRoleDistributionPoint, not something specific to one role).
+        SQL sysadmin rights (as granted to the site server's computer
+        account by Install-LabSqlServer's -SqlSysAdminAccounts) are a
+        separate grant and do not substitute for this. Harmless for the
+        default co-located topology, where every role lands on the site
+        server itself; a real gap only once a template puts a role on a
+        genuinely different VM (e.g. -Template split-sql with a
+        Reporting service account added on top of the shipped template,
+        which itself ships without one).
 
     .EXAMPLE
         Add-CMRoleSiteSystem -ComputerName CM01 -DomainCredential $cred `

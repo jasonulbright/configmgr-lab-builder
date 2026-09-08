@@ -26,6 +26,11 @@ function Test-LabMedia {
         documented NULL regression that breaks CM setup. Matches the
         config.psd1 ODBCURL default.
 
+    .PARAMETER RequireReporting
+        Marks the SSRS installer item Required. Pass this when the caller's
+        config defines ServiceAccounts.Reporting; omit it and the item is
+        still reported but never fails the gate.
+
     .PARAMETER VcRedistX64Url
 
     .PARAMETER VcRedistX86Url
@@ -49,7 +54,13 @@ function Test-LabMedia {
 
         [string]$OdbcUrl        = 'https://go.microsoft.com/fwlink/?linkid=2335671',
         [string]$VcRedistX64Url = 'https://aka.ms/vs/18/release/vc_redist.x64.exe',
-        [string]$VcRedistX86Url = 'https://aka.ms/vs/18/release/vc_redist.x86.exe'
+        [string]$VcRedistX86Url = 'https://aka.ms/vs/18/release/vc_redist.x86.exe',
+
+        # Set when the caller's config defines ServiceAccounts.Reporting --
+        # SSRS is only needed for that config, so the installer can't be
+        # unconditionally Required without failing the gate for every
+        # config that doesn't want Reporting at all.
+        [switch]$RequireReporting
     )
 
     $sw      = Join-Path $LabSourcesRoot 'SoftwarePackages'
@@ -104,14 +115,15 @@ function Test-LabMedia {
         DownloadUrl = 'https://www.microsoft.com/en-us/evalcenter/download-sql-server-2022'
     }))
 
-    # ---- SSRS installer (optional: only needed when config.psd1 defines
-    #      ServiceAccounts.Reporting; not required for every lab build,
-    #      so this is informational rather than gating Deploy) ----
+    # ---- SSRS installer (only needed when the caller's config defines
+    #      ServiceAccounts.Reporting -- Required tracks -RequireReporting
+    #      rather than being unconditionally true or false, since neither
+    #      fixed value is correct for every config) ----
     $ssrsPath = Join-Path $sw 'SQL2022\SQLServerReportingServices.exe'
     $ssrsFound = Test-Path -LiteralPath $ssrsPath -PathType Leaf
     $items.Add((New-MediaItem @{
         Id = 'SsrsInstaller'; Name = 'SQL Server Reporting Services installer'
-        Required = $false
+        Required = [bool]$RequireReporting
         Found = $ssrsFound; Path = if ($ssrsFound) { $ssrsPath } else { '' }
         Detail = if ($ssrsFound) { Format-MediaFileDetail $ssrsPath } else { "No SQLServerReportingServices.exe at $ssrsPath -- only needed if config.psd1 defines ServiceAccounts.Reporting" }
         TargetDir = Join-Path $sw 'SQL2022'

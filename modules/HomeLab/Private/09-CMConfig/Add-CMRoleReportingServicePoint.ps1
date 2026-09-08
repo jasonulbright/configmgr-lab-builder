@@ -6,8 +6,7 @@ function Add-CMRoleReportingServicePoint {
     .DESCRIPTION
         Calls Add-CMRoleSiteSystem first (idempotent prerequisite), then
         registers -UserName as a CM Account (idempotent -- Add-CMReportingServicePoint
-        rejects any -UserName that isn't already a registered CM Account,
-        confirmed live: "User account '...' was not found at site '...'"),
+        rejects any -UserName that isn't already a registered CM Account),
         then adds the RSP role via Add-CMReportingServicePoint.
 
         Requires SQL Server Reporting Services already installed and
@@ -15,6 +14,13 @@ function Add-CMRoleReportingServicePoint {
         see Install-LabSsrs / Set-LabSsrsConfiguration. This function
         only creates the CM-side role pointing at that report server;
         it does not touch SSRS itself.
+
+        See Add-CMRoleSiteSystem's -AccountName remarks: remote
+        installation onto a site system other than the site server needs
+        a local-admin grant this repo does not yet provision. Harmless
+        for the default co-located topology; RspServerFqdn/DatabaseServerName
+        point at whichever VM actually runs SQL/SSRS (see Install-HomeLab.ps1
+        Phase 09), so a distributed topology hits the gap there, not here.
 
         Idempotent: short-circuits when Get-CMReportingServicePoint
         returns a matching entry on the target server.

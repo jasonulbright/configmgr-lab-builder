@@ -182,8 +182,9 @@ function Set-LabSsrsConfiguration {
                 # method's own HRESULT/out-param, not CIM's generic
                 # ReturnValue -- and ReturnValue's TYPE varies per method
                 # (int for some, bool for others: GenerateDatabaseCreationScript
-                # returns bool True on success, which "-ne 0" coerces to
-                # $false and misreads as failure). When HRESULT is present,
+                # returns bool True on success, and comparing that to 0 with
+                # -ne coerces 0 to $false and misreads success as failure).
+                # When HRESULT is present,
                 # it alone is authoritative. Only fall back to ReturnValue
                 # when a method has no HRESULT out-param at all.
                 $hasHresult = $Result.PSObject.Properties['HRESULT']
@@ -246,14 +247,33 @@ function Set-LabSsrsConfiguration {
                 }
             }
 
-            # 1. Catalog database creation script -- skipped when the
-            # database already exists (e.g. resuming after an earlier
-            # partial failure downstream of creation). Re-running
-            # GenerateDatabaseCreationScript's own CREATE DATABASE script
-            # against an existing database is not safe: the method does not
-            # check for an existing database itself.
-            if (Test-RsDatabaseExists -DatabaseName $DatabaseName -SqlServerInstance $SqlServerInstance) {
-                Write-Verbose "Set-LabSsrsConfiguration: database '$DatabaseName' already exists, skipping creation"
+            # 1. Catalog database creation script -- skipped only when BOTH
+            # the catalog DB and its companion TempDB already exist (e.g.
+            # resuming after an earlier partial failure downstream of
+            # creation). GenerateDatabaseCreationScript creates both as one
+            # script and SSRS does not recreate a missing TempDB on its
+            # own, so checking only the primary database would leave a
+            # half-created pair undetected.
+            #
+            # GenerateDatabaseCreationScript does not check for an existing
+            # database before generating its CREATE DATABASE script, so
+            # there is no confirmed-safe way to re-run it against a
+            # database that already exists. A mismatched pair
+            # (exactly one of the two present) means a prior run failed
+            # mid-script in a state this function cannot safely resolve
+            # automatically -- re-running could error on the CREATE
+            # DATABASE for the half that already exists, or silently do
+            # nothing useful. Fail clearly and point at manual cleanup
+            # instead of guessing.
+            $tempDbName = "${DatabaseName}TempDB"
+            $catalogExists = Test-RsDatabaseExists -DatabaseName $DatabaseName -SqlServerInstance $SqlServerInstance
+            $tempDbExists = Test-RsDatabaseExists -DatabaseName $tempDbName -SqlServerInstance $SqlServerInstance
+            if ($catalogExists -and $tempDbExists) {
+                Write-Verbose "Set-LabSsrsConfiguration: '$DatabaseName' and '$tempDbName' already exist, skipping creation"
+            } elseif ($catalogExists -or $tempDbExists) {
+                $present = if ($catalogExists) { $DatabaseName } else { $tempDbName }
+                $missing = if ($catalogExists) { $tempDbName } else { $DatabaseName }
+                throw "Set-LabSsrsConfiguration: '$present' exists but '$missing' does not -- SSRS catalog database pair is in an inconsistent state (likely a prior run failed mid-script). Not safe to auto-repair; drop '$present' manually on $SqlServerInstance and re-run, or restore both from backup."
             } else {
                 $dbScript = Invoke-CimMethod -InputObject $cs -MethodName GenerateDatabaseCreationScript -Arguments @{
                     DatabaseName     = $DatabaseName
