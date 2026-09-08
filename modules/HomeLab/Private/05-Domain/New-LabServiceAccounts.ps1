@@ -34,8 +34,10 @@ function New-LabServiceAccounts {
         NetBIOS form (e.g. CONTOSO).
 
     .PARAMETER ServiceAccounts
-        Hashtable from config.psd1: ClientPush / NAA / Admin, each with
-        Name, Password, Desc, Group.
+        Hashtable from config.psd1: ClientPush / NAA / Join, each with
+        Name, Password, Desc, Group. Reporting is optional (same shape);
+        when present it's added to Windows Authorization Access Group
+        instead of Domain Admins.
 
     .PARAMETER OUName
         OU under the domain root. Default 'Service Accounts'.
@@ -85,6 +87,14 @@ function New-LabServiceAccounts {
             }
         }
     }
+    $hasReporting = $ServiceAccounts.ContainsKey('Reporting')
+    if ($hasReporting) {
+        foreach ($p in 'Name','Password') {
+            if ([string]::IsNullOrEmpty([string]$ServiceAccounts['Reporting'][$p])) {
+                throw "New-LabServiceAccounts: ServiceAccounts.Reporting.$p is empty"
+            }
+        }
+    }
     if ([string]::IsNullOrEmpty($AdminUser) -or [string]::IsNullOrEmpty($AdminPass)) {
         throw "New-LabServiceAccounts: AdminUser/AdminPass required (LabAdmin orchestrator)"
     }
@@ -123,6 +133,18 @@ function New-LabServiceAccounts {
     $groupMemberships = @{
         'Domain Admins'        = @($AdminUser, $ServiceAccounts.ClientPush.Name, $ServiceAccounts.Join.Name)
         'Remote Desktop Users' = @($AdminUser)
+    }
+
+    if ($hasReporting) {
+        $accounts += @{
+            Sam   = $ServiceAccounts.Reporting.Name
+            Full  = 'ConfigMgr Reporting Services Point'
+            Pass  = $ServiceAccounts.Reporting.Password
+            Desc  = $ServiceAccounts.Reporting.Desc
+        }
+        # Grants Allow-Read on tokenGroupsGlobalAndUniversal for all domain
+        # users; SSRS needs this to resolve report-security group membership.
+        $groupMemberships['Windows Authorization Access Group'] = @($ServiceAccounts.Reporting.Name)
     }
 
     Write-LabLog "[$DCComputerName] Creating service accounts under OU=$OUName" -Status RUN

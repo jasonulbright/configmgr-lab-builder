@@ -236,6 +236,16 @@ function Get-LabConfig {
         }
     }
 
+    # Reporting is optional (only needed when the RSP role is deployed),
+    # unlike ClientPush/NAA/Join above -- but if present, Name is still
+    # required for the same reason (becomes the AD sAMAccountName).
+    if ($cfg.ServiceAccounts.ContainsKey('Reporting')) {
+        $a = $cfg.ServiceAccounts['Reporting']
+        if (-not $a.ContainsKey('Name') -or [string]::IsNullOrEmpty([string]$a['Name'])) {
+            throw "Get-LabConfig: ServiceAccounts.Reporting.Name is empty"
+        }
+    }
+
     # Computed convenience fields. These are NOT in the source psd1.
     $cfg['NetBIOS']    = ($cfg.DomainName -split '\.')[0].ToUpper()
     $cfg['DomainDN']   = (($cfg.DomainName -split '\.') | ForEach-Object { "DC=$_" }) -join ','

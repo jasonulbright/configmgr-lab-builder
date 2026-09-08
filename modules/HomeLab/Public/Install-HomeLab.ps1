@@ -777,6 +777,16 @@ function Install-HomeLab {
 
         Set-LabSqlMemory   -ComputerName $sqlVM.Name -DomainCredential $domainCred | Out-Null
         Set-LabSqlFirewall -ComputerName $sqlVM.Name -DomainCredential $domainCred | Out-Null
+
+        if ($cfg.ServiceAccounts.ContainsKey('Reporting')) {
+            $reportingCred = Get-LabCredential -Identity Reporting -Config $cfg
+
+            Install-LabSsrs -ComputerName $sqlVM.Name -DomainCredential $domainCred | Out-Null
+
+            $ssrsConfig = Set-LabSsrsConfiguration `
+                -ComputerName $sqlVM.Name -DomainCredential $domainCred `
+                -ServiceAccountCredential $reportingCred
+        }
     }
 
     # WSUS install moved out of Phase 07 because wsusutil postinstall needs
@@ -991,6 +1001,21 @@ function Install-HomeLab {
         }
         Install-CMSoftwareUpdatePoint -ComputerName $cmName -DomainCredential $domainCred `
             -SiteCode $cfg.SiteCode -ServerFqdn "$($siteVM.Name).$($cfg.DomainName)"
+
+        Add-CMRoleFallbackStatusPoint -ComputerName $cmName -DomainCredential $domainCred `
+            -SiteCode $cfg.SiteCode -FspServerFqdn "$($siteVM.Name).$($cfg.DomainName)" | Out-Null
+
+        Add-CMRoleServiceConnectionPoint -ComputerName $cmName -DomainCredential $domainCred `
+            -SiteCode $cfg.SiteCode -ScpServerFqdn "$($siteVM.Name).$($cfg.DomainName)" | Out-Null
+
+        if ($ssrsConfig) {
+            Add-CMRoleReportingServicePoint -ComputerName $cmName -DomainCredential $domainCred `
+                -SiteCode $cfg.SiteCode -RspServerFqdn "$($siteVM.Name).$($cfg.DomainName)" `
+                -UserName "$($cfg.NetBIOS)\$($cfg.ServiceAccounts.Reporting.Name)" `
+                -Password $cfg.ServiceAccounts.Reporting.Password `
+                -DatabaseServerName "$($siteVM.Name).$($cfg.DomainName)" `
+                -ReportServerInstance $ssrsConfig.ReportServerInstanceName | Out-Null
+        }
 
         if ($clientVMs.Count -gt 0) {
             New-CMTestCollection -ComputerName $cmName -DomainCredential $domainCred `

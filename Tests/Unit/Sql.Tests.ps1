@@ -23,6 +23,8 @@ BeforeAll {
     . (Join-Path $script:sqlRoot 'Install-LabSqlServer.ps1')
     . (Join-Path $script:sqlRoot 'Set-LabSqlMemory.ps1')
     . (Join-Path $script:sqlRoot 'Set-LabSqlFirewall.ps1')
+    . (Join-Path $script:sqlRoot 'Install-LabSsrs.ps1')
+    . (Join-Path $script:sqlRoot 'Set-LabSsrsConfiguration.ps1')
 
     function New-FakeCred {
         param([string]$User = 'CONTOSO\Administrator', [string]$Pass = 'p')
@@ -178,5 +180,60 @@ Describe 'Set-LabSqlFirewall' {
         }
         $r = Set-LabSqlFirewall -ComputerName CM01 -DomainCredential (New-FakeCred)
         $r.Created.Count + $r.Skipped.Count | Should -Be 2
+    }
+}
+
+Describe 'Install-LabSsrs parameter validation' {
+
+    It 'rejects a missing installer path' {
+        { Install-LabSsrs -ComputerName CM01 -DomainCredential (New-FakeCred) `
+            -InstallerPath 'C:\does-not-exist.exe' } |
+            Should -Throw '*installer not found*'
+    }
+
+    It 'rejects a SetupTimeoutMinutes outside the allowed range' {
+        { Install-LabSsrs -ComputerName CM01 -DomainCredential (New-FakeCred) `
+            -InstallerPath 'C:\does-not-exist.exe' -SetupTimeoutMinutes 1 } |
+            Should -Throw
+    }
+
+    It 'short-circuits when SSRS is already installed' {
+        $exe = Join-Path $TestDrive 'fake-ssrs.exe'
+        Set-Content -Path $exe -Value 'fake'
+        Mock Invoke-LabCommand -MockWith {
+            return [pscustomobject]@{ Installed = $true; Status = 'Running' }
+        }
+        $r = Install-LabSsrs -ComputerName CM01 -DomainCredential (New-FakeCred) -InstallerPath $exe
+        $r.Status | Should -Be 'AlreadyInstalled'
+        $r.InstallFolder | Should -Not -BeNullOrEmpty
+    }
+}
+
+Describe 'Set-LabSsrsConfiguration parameter validation' {
+
+    It 'rejects an empty DatabaseName at parameter binding' {
+        { Set-LabSsrsConfiguration -ComputerName CM01 -DomainCredential (New-FakeCred) `
+            -ServiceAccountCredential (New-FakeCred) -DatabaseName '' } |
+            Should -Throw
+    }
+
+    It 'short-circuits when the report server is already initialized' {
+        Mock Invoke-LabCommand -MockWith {
+            return [pscustomobject]@{
+                AdminNamespace = 'root\Microsoft\SqlServer\ReportServer\RS_MSSQLSERVER\v16\Admin'
+                IsInitialized  = $true
+                InstanceName   = 'MSSQLSERVER'
+                DatabaseName   = 'ReportServer'
+                WebServiceVDir = 'ReportServer'
+                PortalVDir     = 'Reports'
+            }
+        }
+        $r = Set-LabSsrsConfiguration -ComputerName CM01 -DomainCredential (New-FakeCred) `
+                -ServiceAccountCredential (New-FakeCred -User 'CONTOSO\svc-CMReporting')
+        $r.Status | Should -Be 'AlreadyConfigured'
+        $r.ReportServerInstanceName | Should -Be 'MSSQLSERVER'
+        $r.DatabaseName | Should -Be 'ReportServer'
+        $r.WebServiceUrl | Should -Be 'http://CM01/ReportServer'
+        $r.PortalUrl | Should -Be 'http://CM01/Reports'
     }
 }

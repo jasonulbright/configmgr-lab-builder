@@ -16,6 +16,8 @@ function Get-LabCredential {
           'NAA'        - svc-CMNAA  (config.ServiceAccounts.NAA)
           'Join'       - svc-CMJoin (config.ServiceAccounts.Join)
                          OSD task-sequence domain-join account.
+          'Reporting'  - svc-CMReporting (config.ServiceAccounts.Reporting)
+                         Reporting services point / SSRS service account.
 
         Returns a PSCredential with username in NETBIOS\sAMAccountName form.
 
@@ -34,7 +36,7 @@ function Get-LabCredential {
     [OutputType([System.Management.Automation.PSCredential])]
     param(
         [Parameter(Mandatory, Position = 0)]
-        [ValidateSet('Admin','ClientPush','NAA','Join')]
+        [ValidateSet('Admin','ClientPush','NAA','Join','Reporting')]
         [string]$Identity,
 
         [Parameter()]
@@ -68,6 +70,7 @@ function Get-LabCredential {
         'ClientPush' { $user = $Config.ServiceAccounts.ClientPush.Name; $pass = $Config.ServiceAccounts.ClientPush.Password }
         'NAA'        { $user = $Config.ServiceAccounts.NAA.Name;        $pass = $Config.ServiceAccounts.NAA.Password }
         'Join'       { $user = $Config.ServiceAccounts.Join.Name;       $pass = $Config.ServiceAccounts.Join.Password }
+        'Reporting'  { $user = $Config.ServiceAccounts.Reporting.Name;  $pass = $Config.ServiceAccounts.Reporting.Password }
     }
 
     # Precedence:
@@ -84,7 +87,7 @@ function Get-LabCredential {
         $plain = [System.Net.NetworkCredential]::new('', $LabPassword).Password
         $Config.AdminPass = $plain
         $script:LabPasswordCache = $plain
-        foreach ($svc in 'ClientPush','NAA','Join') {
+        foreach ($svc in 'ClientPush','NAA','Join','Reporting') {
             if ($Config.ServiceAccounts -and $Config.ServiceAccounts[$svc] -and -not $Config.ServiceAccounts[$svc].Password) {
                 $Config.ServiceAccounts[$svc].Password = $plain
             }
@@ -121,7 +124,7 @@ function Get-LabCredential {
         }
         if (-not $Config.AdminPass) { $Config.AdminPass = $plain }
         $script:LabPasswordCache = $plain
-        foreach ($svc in 'ClientPush','NAA','Join') {
+        foreach ($svc in 'ClientPush','NAA','Join','Reporting') {
             if ($Config.ServiceAccounts -and $Config.ServiceAccounts[$svc] -and -not $Config.ServiceAccounts[$svc].Password) {
                 $Config.ServiceAccounts[$svc].Password = $plain
             }

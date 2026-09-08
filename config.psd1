@@ -74,6 +74,12 @@
             Desc     = 'ConfigMgr OSD task sequence domain-join account'
             Group    = 'Domain Admins'  # Also added to Remote Desktop Users
         }
+        Reporting = @{
+            Name     = 'svc-CMReporting'
+            Password = 'P@ssw0rd!'
+            Desc     = 'ConfigMgr Reporting Services Point account'
+            Group    = 'Windows Authorization Access Group'  # Required for SSRS to read tokenGroupsGlobalAndUniversal
+        }
     }
 
     # Software versions

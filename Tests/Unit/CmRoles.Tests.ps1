@@ -3,9 +3,11 @@
 .SYNOPSIS
     Pester tests for the S15 distributed-role helpers
     (Add-CMRoleSiteSystem / Add-CMRoleManagementPoint /
-    Add-CMRoleDistributionPoint). Live CM cmdlets require a running
-    primary site, so these tests cover parameter binding only;
-    behavioural coverage lives under Tests/Integration.
+    Add-CMRoleDistributionPoint / Add-CMRoleFallbackStatusPoint /
+    Add-CMRoleServiceConnectionPoint / Add-CMRoleReportingServicePoint).
+    Live CM cmdlets require a running primary site, so these tests
+    cover parameter binding only; behavioural coverage lives under
+    Tests/Integration.
 #>
 
 BeforeAll {
@@ -128,6 +130,184 @@ Describe 'Add-CMRoleDistributionPoint parameter validation' {
                 -SiteCode MCM -DpServerFqdn 'DP01.contoso.com' `
                 -MinimumFreeSpaceMB 1048576 } |
                 Should -Throw '*range*'
+        }
+    }
+}
+
+Describe 'Add-CMRoleFallbackStatusPoint parameter validation' {
+
+    It 'rejects a SiteCode of length != 3' {
+        InModuleScope HomeLab -Parameters @{ Cred = $script:cred } {
+            param($Cred)
+            { Add-CMRoleFallbackStatusPoint -ComputerName CM01 -DomainCredential $Cred `
+                -SiteCode 'TL' -FspServerFqdn 'FSP01.contoso.com' } |
+                Should -Throw '*length*'
+        }
+    }
+
+    It 'rejects an empty FspServerFqdn' {
+        InModuleScope HomeLab -Parameters @{ Cred = $script:cred } {
+            param($Cred)
+            { Add-CMRoleFallbackStatusPoint -ComputerName CM01 -DomainCredential $Cred `
+                -SiteCode MCM -FspServerFqdn '' } |
+                Should -Throw '*null*empty*'
+        }
+    }
+
+    It 'rejects an empty ComputerName' {
+        InModuleScope HomeLab -Parameters @{ Cred = $script:cred } {
+            param($Cred)
+            { Add-CMRoleFallbackStatusPoint -ComputerName '' -DomainCredential $Cred `
+                -SiteCode MCM -FspServerFqdn 'FSP01.contoso.com' } |
+                Should -Throw '*null*empty*'
+        }
+    }
+
+    It 'calls Add-CMRoleSiteSystem then Invoke-LabCommand and returns the result (mocked remoting)' {
+        InModuleScope HomeLab -Parameters @{ Cred = $script:cred } {
+            param($Cred)
+            # MOCK the remoting layer -- unit tests must never be able to
+            # reach a lab or run a live CM cmdlet.
+            Mock Add-CMRoleSiteSystem -MockWith {
+                [pscustomobject]@{ Status = 'AlreadyExists' }
+            }
+            Mock Invoke-LabCommand -MockWith {
+                [pscustomobject]@{ Status = 'Created'; ServerFqdn = 'FSP01.contoso.com' }
+            }
+            Mock Write-LabLog { }
+
+            $result = Add-CMRoleFallbackStatusPoint -ComputerName CM01 -DomainCredential $Cred `
+                -SiteCode MCM -FspServerFqdn 'FSP01.contoso.com'
+
+            $result.Status | Should -Be 'Created'
+            $result.ServerFqdn | Should -Be 'FSP01.contoso.com'
+            Should -Invoke Add-CMRoleSiteSystem -Times 1 -Exactly
+            Should -Invoke Invoke-LabCommand -Times 1 -Exactly
+        }
+    }
+}
+
+Describe 'Add-CMRoleServiceConnectionPoint parameter validation' {
+
+    It 'rejects a SiteCode of length != 3' {
+        InModuleScope HomeLab -Parameters @{ Cred = $script:cred } {
+            param($Cred)
+            { Add-CMRoleServiceConnectionPoint -ComputerName CM01 -DomainCredential $Cred `
+                -SiteCode 'TOOLONG' -ScpServerFqdn 'CM01.contoso.com' } |
+                Should -Throw '*length*'
+        }
+    }
+
+    It 'rejects an empty ScpServerFqdn' {
+        InModuleScope HomeLab -Parameters @{ Cred = $script:cred } {
+            param($Cred)
+            { Add-CMRoleServiceConnectionPoint -ComputerName CM01 -DomainCredential $Cred `
+                -SiteCode MCM -ScpServerFqdn '' } |
+                Should -Throw '*null*empty*'
+        }
+    }
+
+    It 'rejects a Mode outside the ValidateSet (Online/Offline)' {
+        InModuleScope HomeLab -Parameters @{ Cred = $script:cred } {
+            param($Cred)
+            { Add-CMRoleServiceConnectionPoint -ComputerName CM01 -DomainCredential $Cred `
+                -SiteCode MCM -ScpServerFqdn 'CM01.contoso.com' -Mode 'Hybrid' } |
+                Should -Throw '*Mode*'
+        }
+    }
+
+    It 'defaults Mode to Online and returns the result (mocked remoting)' {
+        InModuleScope HomeLab -Parameters @{ Cred = $script:cred } {
+            param($Cred)
+            # MOCK the remoting layer -- unit tests must never be able to
+            # reach a lab or run a live CM cmdlet.
+            Mock Add-CMRoleSiteSystem -MockWith {
+                [pscustomobject]@{ Status = 'AlreadyExists' }
+            }
+            Mock Invoke-LabCommand -MockWith {
+                [pscustomobject]@{ Status = 'Created'; ServerFqdn = 'CM01.contoso.com' }
+            } -ParameterFilter { $ArgumentList[2] -eq 'Online' }
+            Mock Write-LabLog { }
+
+            $result = Add-CMRoleServiceConnectionPoint -ComputerName CM01 -DomainCredential $Cred `
+                -SiteCode MCM -ScpServerFqdn 'CM01.contoso.com'
+
+            $result.Status | Should -Be 'Created'
+            $result.ServerFqdn | Should -Be 'CM01.contoso.com'
+            Should -Invoke Add-CMRoleSiteSystem -Times 1 -Exactly
+            Should -Invoke Invoke-LabCommand -Times 1 -Exactly
+        }
+    }
+}
+
+Describe 'Add-CMRoleReportingServicePoint parameter validation' {
+
+    BeforeAll {
+        $script:rspBaseParams = @{
+            ComputerName         = 'CM01'
+            SiteCode             = 'MCM'
+            RspServerFqdn        = 'CM01.contoso.com'
+            UserName             = 'CONTOSO\svc-CMReporting'
+            Password             = 'P@ssw0rd!'
+            DatabaseServerName   = 'CM01.contoso.com'
+            ReportServerInstance = 'SSRS'
+        }
+    }
+
+    It 'rejects a SiteCode of length != 3' {
+        InModuleScope HomeLab -Parameters @{ Cred = $script:cred; P = $script:rspBaseParams } {
+            param($Cred, $P)
+            { Add-CMRoleReportingServicePoint @P -DomainCredential $Cred -SiteCode 'TOOLONG' } |
+                Should -Throw '*length*'
+        }
+    }
+
+    It 'rejects an empty RspServerFqdn' {
+        InModuleScope HomeLab -Parameters @{ Cred = $script:cred; P = $script:rspBaseParams } {
+            param($Cred, $P)
+            $bad = $P.Clone(); $bad.RspServerFqdn = ''
+            { Add-CMRoleReportingServicePoint @bad -DomainCredential $Cred } |
+                Should -Throw '*null*empty*'
+        }
+    }
+
+    It 'rejects an empty UserName' {
+        InModuleScope HomeLab -Parameters @{ Cred = $script:cred; P = $script:rspBaseParams } {
+            param($Cred, $P)
+            $bad = $P.Clone(); $bad.UserName = ''
+            { Add-CMRoleReportingServicePoint @bad -DomainCredential $Cred } |
+                Should -Throw '*null*empty*'
+        }
+    }
+
+    It 'rejects an empty ReportServerInstance' {
+        InModuleScope HomeLab -Parameters @{ Cred = $script:cred; P = $script:rspBaseParams } {
+            param($Cred, $P)
+            $bad = $P.Clone(); $bad.ReportServerInstance = ''
+            { Add-CMRoleReportingServicePoint @bad -DomainCredential $Cred } |
+                Should -Throw '*null*empty*'
+        }
+    }
+
+    It 'defaults DatabaseName to CM_<SiteCode> and returns the result (mocked remoting)' {
+        InModuleScope HomeLab -Parameters @{ Cred = $script:cred; P = $script:rspBaseParams } {
+            param($Cred, $P)
+            # MOCK the remoting layer -- unit tests must never be able to
+            # reach a lab or run a live CM cmdlet.
+            Mock Add-CMRoleSiteSystem -MockWith {
+                [pscustomobject]@{ Status = 'AlreadyExists' }
+            }
+            Mock Invoke-LabCommand -MockWith {
+                [pscustomobject]@{ Status = 'Created'; ServerFqdn = 'CM01.contoso.com' }
+            } -ParameterFilter { $ArgumentList[5] -eq 'CM_MCM' }
+            Mock Write-LabLog { }
+
+            $result = Add-CMRoleReportingServicePoint @P -DomainCredential $Cred
+
+            $result.Status | Should -Be 'Created'
+            $result.ServerFqdn | Should -Be 'CM01.contoso.com'
+            Should -Invoke Add-CMRoleSiteSystem -Times 1 -Exactly
+            Should -Invoke Invoke-LabCommand -Times 1 -Exactly
         }
     }
 }

@@ -33,7 +33,7 @@ function Enter-HomeLabSession {
         [string]$ComputerName,
 
         [Parameter()]
-        [ValidateSet('Admin','ClientPush','NAA','Join')]
+        [ValidateSet('Admin','ClientPush','NAA','Join','Reporting')]
         [string]$Identity = 'Admin',
 
         [Parameter()]

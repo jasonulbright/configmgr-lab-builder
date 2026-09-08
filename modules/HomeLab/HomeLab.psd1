@@ -1,6 +1,8 @@
 @{
     RootModule        = 'HomeLab.psm1'
-    ModuleVersion     = '1.5.0'
+    ModuleVersion     = '1.6.0'
+    # 1.6.0: automate Fallback Status Point, Service Connection Point, and
+    #        Reporting Services Point roles; install + configure SSRS.
     # 1.5.0: Test-LabMedia pre-flight + GUI Media wizard page (staged-media
     #        check, per-item download/open-folder actions, deploy gate).
     # 1.4.1: create the CM prereq download folder when no offline cache is

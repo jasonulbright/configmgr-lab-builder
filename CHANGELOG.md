@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.0] - 2026-09-08
+
+### Added
+
+- Automate Fallback Status Point, Service Connection Point, and Reporting Services Point roles.
+- Install and configure SQL Server Reporting Services automatically.
+- Provision a dedicated Windows account for Reporting Services.
+
 ## [1.5.0] - 2026-08-14
 
 ### Added
