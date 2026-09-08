@@ -89,6 +89,11 @@ function Install-HomeLab {
         Path to msodbcsql_18.5.2.1.msi. Default:
         $LabSourcesRoot\SoftwarePackages\msodbcsql.msi.
 
+    .PARAMETER SsrsInstallerPath
+        Path to SQLServerReportingServices.exe, staged on the host (no
+        download). Default: $LabSourcesRoot\SoftwarePackages\SQL2022\SQLServerReportingServices.exe.
+        Only used when config.psd1 defines ServiceAccounts.Reporting.
+
     .PARAMETER MsOleDbMsiPath
         Path to msoledbsql.msi. OPT-IN: when omitted, the engine does
         NOT pre-install the OLE DB driver at all. CM setup manages
@@ -166,6 +171,9 @@ function Install-HomeLab {
 
         [Parameter()]
         [string]$OdbcMsiPath,
+
+        [Parameter()]
+        [string]$SsrsInstallerPath,
 
         [Parameter()]
         [string]$MsOleDbMsiPath,
@@ -279,7 +287,7 @@ function Install-HomeLab {
         throw "Install-HomeLab: lab password is required (pass -LabPassword, set `$cfg.AdminPass, set `$env:HOMELAB_PASSWORD, or run from an interactive console)"
     }
     $cfg.AdminPass = $plain
-    foreach ($svc in 'ClientPush','NAA','Join') {
+    foreach ($svc in 'ClientPush','NAA','Join','Reporting') {
         if ($cfg.ServiceAccounts -and $cfg.ServiceAccounts[$svc]) {
             $cfg.ServiceAccounts[$svc].Password = $plain
         }
@@ -337,6 +345,9 @@ function Install-HomeLab {
             if (Test-Path $p) { $OdbcMsiPath = $p; break }
         }
         if (-not $OdbcMsiPath) { $OdbcMsiPath = Join-Path $sw 'msodbcsql.msi' }
+    }
+    if (-not $SsrsInstallerPath) {
+        $SsrsInstallerPath = Join-Path $sw 'SQL2022\SQLServerReportingServices.exe'
     }
     # MsOleDbMsiPath intentionally has NO default resolution: MSOLEDB
     # is a CM-setup-managed redistributable (see the parameter help),
@@ -781,7 +792,35 @@ function Install-HomeLab {
         if ($cfg.ServiceAccounts.ContainsKey('Reporting')) {
             $reportingCred = Get-LabCredential -Identity Reporting -Config $cfg
 
-            Install-LabSsrs -ComputerName $sqlVM.Name -DomainCredential $domainCred | Out-Null
+            $ssrsInstall = Install-LabSsrs -ComputerName $sqlVM.Name -DomainCredential $domainCred `
+                -InstallerPath $SsrsInstallerPath
+            if ($ssrsInstall.Status -eq 'InstalledRebootRequired') {
+                # Mirrors the Phase 04-VM VC++ reboot handling above: a
+                # pending reboot poisons downstream WMI/service state, so
+                # reboot and verify LastBootUpTime actually advanced before
+                # touching SSRS configuration.
+                Write-LabLog "[$($sqlVM.Name)] SSRS requested reboot; restarting" -Status WARN
+                $bootBeforeSsrs = Invoke-LabCommand -ComputerName $sqlVM.Name -Credential $domainCred -ScriptBlock {
+                    [string](Get-CimInstance Win32_OperatingSystem).LastBootUpTime
+                }
+                try {
+                    Invoke-LabCommand -ComputerName $sqlVM.Name -Credential $domainCred -ScriptBlock {
+                        Restart-Computer -Force
+                    } 2>$null | Out-Null
+                } catch {
+                    if ($_.Exception.Message -notmatch 'shut|connect|transport|broken|terminated|aborted|I/O') { throw }
+                }
+                Clear-LabSessionCache
+                Start-Sleep -Seconds 30
+                $up = Wait-LabVM -ComputerName $sqlVM.Name -Credential $domainCred -TimeoutSeconds 600
+                if (-not $up) { throw "Install-HomeLab: $($sqlVM.Name) did not return to WinRM-ready after SSRS reboot" }
+                $bootAfterSsrs = Invoke-LabCommand -ComputerName $sqlVM.Name -Credential $domainCred -ScriptBlock {
+                    [string](Get-CimInstance Win32_OperatingSystem).LastBootUpTime
+                }
+                if ($bootAfterSsrs -eq $bootBeforeSsrs) {
+                    throw "Install-HomeLab: $($sqlVM.Name) LastBootUpTime did not advance ($bootBeforeSsrs) -- restart did not actually happen, pending-reboot state still in place"
+                }
+            }
 
             $ssrsConfig = Set-LabSsrsConfiguration `
                 -ComputerName $sqlVM.Name -DomainCredential $domainCred `
@@ -1008,12 +1047,30 @@ function Install-HomeLab {
         Add-CMRoleServiceConnectionPoint -ComputerName $cmName -DomainCredential $domainCred `
             -SiteCode $cfg.SiteCode -ScpServerFqdn "$($siteVM.Name).$($cfg.DomainName)" | Out-Null
 
-        if ($ssrsConfig) {
+        if ($cfg.ServiceAccounts.ContainsKey('Reporting')) {
+            # $ssrsConfig is only populated when Phase 06-Sql actually ran
+            # in THIS invocation. On a resume run with -SkipPhases 06-Sql
+            # against a lab where SSRS is already installed + initialized,
+            # resolve it here too -- Set-LabSsrsConfiguration's own
+            # discovery/idempotency check makes this a cheap no-op, not a
+            # re-install.
+            if (-not $ssrsConfig) {
+                $reportingCred = Get-LabCredential -Identity Reporting -Config $cfg
+                $ssrsConfig = Set-LabSsrsConfiguration `
+                    -ComputerName $sqlVM.Name -DomainCredential $domainCred `
+                    -ServiceAccountCredential $reportingCred
+            }
+
+            # SSRS lives on $sqlVM (co-located by default, a separate VM
+            # under -Template split-sql), NOT necessarily $siteVM -- RSP
+            # must be installed on the site system that's actually running
+            # SSRS, and the site database connection info must point at
+            # wherever the site DB itself lives, which is also $sqlVM.
             Add-CMRoleReportingServicePoint -ComputerName $cmName -DomainCredential $domainCred `
-                -SiteCode $cfg.SiteCode -RspServerFqdn "$($siteVM.Name).$($cfg.DomainName)" `
+                -SiteCode $cfg.SiteCode -RspServerFqdn "$($sqlVM.Name).$($cfg.DomainName)" `
                 -UserName "$($cfg.NetBIOS)\$($cfg.ServiceAccounts.Reporting.Name)" `
                 -Password $cfg.ServiceAccounts.Reporting.Password `
-                -DatabaseServerName "$($siteVM.Name).$($cfg.DomainName)" `
+                -DatabaseServerName "$($sqlVM.Name).$($cfg.DomainName)" `
                 -ReportServerInstance $ssrsConfig.ReportServerInstanceName | Out-Null
         }
 

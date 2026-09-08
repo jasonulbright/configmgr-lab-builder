@@ -161,17 +161,26 @@ function Install-LabSsrs {
             # deliberately omitted: this bundle's bootstrapper application
             # rejects both (exit 87) even though they're standard Burn
             # engine verbs elsewhere.
+            #
+            # Start-Process -ArgumentList does NOT quote array elements
+            # containing spaces -- confirmed empirically: an unquoted
+            # 'InstallFolder=C:\Program Files\...' value is torn apart into
+            # one bare token per space (7 separate args from 2 real ones).
+            # Every value that can contain a space gets its own embedded
+            # quotes here rather than relying on Start-Process to add them.
             $argList = @(
                 '/quiet'
-                "IAcceptLicenseTerms=True"
-                "Edition=$Edition"
-                "InstallFolder=$InstallFolder"
+                'IAcceptLicenseTerms=True'
+                "Edition=`"$Edition`""
+                "InstallFolder=`"$InstallFolder`""
             )
 
             # No -Wait: WaitForExit(timeout) gives an escape hatch a bare
             # -Wait would not, in case /Quiet turns out to be the wrong
             # switch and the bootstrapper tries to render UI in a session
-            # with no desktop.
+            # with no desktop. $TimeoutSeconds here is already in seconds --
+            # the caller converts from -SetupTimeoutMinutes before passing
+            # it (see -ArgumentList below); do not multiply by 60 again.
             $proc = Start-Process -FilePath $ExePath -ArgumentList $argList -PassThru -WindowStyle Hidden
             $exited = $proc.WaitForExit($TimeoutSeconds * 1000)
             if (-not $exited) {
@@ -204,7 +213,7 @@ function Install-LabSsrs {
             }
 
             [pscustomobject]@{ ExitCode = $exitCode; LogPath = $logPath; LogText = $logText }
-        } -ArgumentList 'C:\Install\SQLServerReportingServices.exe', $Edition, $InstallFolder, $SetupTimeoutMinutes
+        } -ArgumentList 'C:\Install\SQLServerReportingServices.exe', $Edition, $InstallFolder, ($SetupTimeoutMinutes * 60)
 
     if ($installResult.ExitCode -notin 0, 3010) {
         $msg = "Install-LabSsrs: setup.exe returned $($installResult.ExitCode) on $ComputerName."

@@ -37,8 +37,8 @@ Describe 'Test-LabMedia on an empty tree' {
         $script:report.RequiredMissing | Should -Be 8
     }
 
-    It 'returns nine items total (eight required + optional prereq cache)' {
-        @($script:report.Items).Count | Should -Be 9
+    It 'returns ten items total (eight required + two optional)' {
+        @($script:report.Items).Count | Should -Be 10
         @($script:report.Items | Where-Object Required).Count | Should -Be 8
     }
 
@@ -46,6 +46,12 @@ Describe 'Test-LabMedia on an empty tree' {
         $cache = $script:report.Items | Where-Object Id -eq 'CMPreReqs'
         $cache.Required | Should -BeFalse
         $cache.Found | Should -BeFalse
+    }
+
+    It 'marks the SSRS installer optional so it never fails the gate' {
+        $ssrs = $script:report.Items | Where-Object Id -eq 'SsrsInstaller'
+        $ssrs.Required | Should -BeFalse
+        $ssrs.Found | Should -BeFalse
     }
 
     It 'gives every required item a target folder and a download page' {

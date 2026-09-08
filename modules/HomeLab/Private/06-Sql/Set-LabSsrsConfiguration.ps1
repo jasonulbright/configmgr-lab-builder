@@ -228,14 +228,41 @@ function Set-LabSsrsConfiguration {
                 }
             }
 
-            # 1. Catalog database creation script.
-            $dbScript = Invoke-CimMethod -InputObject $cs -MethodName GenerateDatabaseCreationScript -Arguments @{
-                DatabaseName     = $DatabaseName
-                Lcid             = $Lcid
-                IsSharePointMode = $false
-            } -ErrorAction Stop
-            Test-RsResult -Result $dbScript -MethodName 'GenerateDatabaseCreationScript'
-            Invoke-RsDbScript -Script $dbScript.Script -SqlServerInstance $SqlServerInstance
+            function Test-RsDatabaseExists {
+                param([string]$DatabaseName, [string]$SqlServerInstance)
+                if (Get-Command -Name Invoke-Sqlcmd -ErrorAction SilentlyContinue) {
+                    $row = Invoke-Sqlcmd -ServerInstance $SqlServerInstance -Database 'master' `
+                        -Query "SELECT 1 AS Present FROM sys.databases WHERE name = '$DatabaseName'" -QueryTimeout 30 -ErrorAction Stop
+                    return [bool]$row
+                }
+                $conn = New-Object System.Data.SqlClient.SqlConnection("Server=$SqlServerInstance;Database=master;Integrated Security=True;Connection Timeout=30")
+                try {
+                    $conn.Open()
+                    $cmd = $conn.CreateCommand()
+                    $cmd.CommandText = "SELECT COUNT(*) FROM sys.databases WHERE name = '$DatabaseName'"
+                    return ([int]$cmd.ExecuteScalar() -gt 0)
+                } finally {
+                    $conn.Close()
+                }
+            }
+
+            # 1. Catalog database creation script -- skipped when the
+            # database already exists (e.g. resuming after an earlier
+            # partial failure downstream of creation). Re-running
+            # GenerateDatabaseCreationScript's own CREATE DATABASE script
+            # against an existing database is not safe: the method does not
+            # check for an existing database itself.
+            if (Test-RsDatabaseExists -DatabaseName $DatabaseName -SqlServerInstance $SqlServerInstance) {
+                Write-Verbose "Set-LabSsrsConfiguration: database '$DatabaseName' already exists, skipping creation"
+            } else {
+                $dbScript = Invoke-CimMethod -InputObject $cs -MethodName GenerateDatabaseCreationScript -Arguments @{
+                    DatabaseName     = $DatabaseName
+                    Lcid             = $Lcid
+                    IsSharePointMode = $false
+                } -ErrorAction Stop
+                Test-RsResult -Result $dbScript -MethodName 'GenerateDatabaseCreationScript'
+                Invoke-RsDbScript -Script $dbScript.Script -SqlServerInstance $SqlServerInstance
+            }
 
             # 2. Grant the service account rights on the new catalog DB
             # (+ tempdb/msdb, per GenerateDatabaseRightsScript's own docs).

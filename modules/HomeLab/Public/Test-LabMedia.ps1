@@ -104,6 +104,20 @@ function Test-LabMedia {
         DownloadUrl = 'https://www.microsoft.com/en-us/evalcenter/download-sql-server-2022'
     }))
 
+    # ---- SSRS installer (optional: only needed when config.psd1 defines
+    #      ServiceAccounts.Reporting; not required for every lab build,
+    #      so this is informational rather than gating Deploy) ----
+    $ssrsPath = Join-Path $sw 'SQL2022\SQLServerReportingServices.exe'
+    $ssrsFound = Test-Path -LiteralPath $ssrsPath -PathType Leaf
+    $items.Add((New-MediaItem @{
+        Id = 'SsrsInstaller'; Name = 'SQL Server Reporting Services installer'
+        Required = $false
+        Found = $ssrsFound; Path = if ($ssrsFound) { $ssrsPath } else { '' }
+        Detail = if ($ssrsFound) { Format-MediaFileDetail $ssrsPath } else { "No SQLServerReportingServices.exe at $ssrsPath -- only needed if config.psd1 defines ServiceAccounts.Reporting" }
+        TargetDir = Join-Path $sw 'SQL2022'
+        DownloadUrl = 'https://www.microsoft.com/download/details.aspx?id=104502'
+    }))
+
     # ---- ConfigMgr media (extracted folder; SMSSETUP at root or one level
     #      down -- same nested-layout detection as Install-HomeLab) ----
     $cmRoot  = Join-Path $sw 'CM'
