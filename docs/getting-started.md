@@ -72,6 +72,9 @@ sign-in-gated download pages for the rest.
 - [ ] **SQL Server 2022 Eval ISO** -> `C:\LabSources\ISOs\`
       ([download](https://www.microsoft.com/en-us/evalcenter/download-sql-server-2022) --
       this runs a small bootstrapper first; choose "Download Media" to get the actual ISO)
+- [ ] **SQL Server Reporting Services installer** ->
+      `C:\LabSources\SoftwarePackages\SQL2022\SQLServerReportingServices.exe`
+      ([download](https://www.microsoft.com/download/details.aspx?id=104502))
 - [ ] **ConfigMgr 2509 baseline, extracted** -> `C:\LabSources\SoftwarePackages\CM\ConfigMgr_2509\`
       ([download](https://www.microsoft.com/en-us/evalcenter/download-microsoft-endpoint-configuration-manager),
       then extract the download with 7-Zip into that folder)
@@ -228,9 +231,9 @@ means missing. Each missing row offers what fits:
   fetches straight into the correct folder. The two layouts run the
   Microsoft bootstrapper's `/quiet /layout`, which downloads a
   multi-gigabyte payload -- start those and let them run.
-- **Web page** -- the three eval ISOs and the ConfigMgr media need a
-  Microsoft sign-in, so the wizard opens the download page in your
-  browser instead. Save the file into the folder the Detail column
+- **Web page** -- the three eval ISOs, ConfigMgr media, and SSRS installer
+  are staged from their vendor download pages, which the wizard opens in
+  your browser. Save the file into the folder the Detail column
   names (the **Folder** button opens it in Explorer, creating it if
   needed).
 - **Re-check** rescans after you've staged anything.
@@ -239,8 +242,9 @@ The "CM prerequisite offline cache" row is optional -- without it,
 CM setup downloads its prerequisites live during Phase 08. Missing
 required rows here will keep the Review page's Deploy button
 disabled, so this is the page to finish before moving on. The
-filename match is a wildcard: the exact ISO name doesn't matter, the
-folder does.
+SSRS installer becomes required when the selected configuration enables
+the Reporting account. ISO matching uses wildcards: the exact ISO name
+doesn't matter, but the folder does.
 
 Click **Next: Topology**.
 

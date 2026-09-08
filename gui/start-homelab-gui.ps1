@@ -867,13 +867,21 @@ function Get-MediaLabRoot {
     return $root.Trim()
 }
 
+function Test-GuiRequiresReporting {
+    if (-not $script:CurrentConfig -or -not $script:CurrentConfig.ServiceAccounts) {
+        return $false
+    }
+    return $script:CurrentConfig.ServiceAccounts.ContainsKey('Reporting')
+}
+
 function Update-MediaPage {
     param([System.Windows.Controls.UserControl]$Page)
     if (-not $Page) { return }
 
     $root = Get-MediaLabRoot
     try {
-        $report = Test-LabMedia -LabSourcesRoot $root
+        $requireReporting = Test-GuiRequiresReporting
+        $report = Test-LabMedia -LabSourcesRoot $root -RequireReporting:$requireReporting
     } catch {
         Add-LogLine ("Media check failed: {0}" -f $_.Exception.Message) 'ERROR'
         return
@@ -1334,7 +1342,8 @@ function Update-ReviewMediaGate {
 
     $root = Get-MediaLabRoot
     try {
-        $report = Test-LabMedia -LabSourcesRoot $root
+        $requireReporting = Test-GuiRequiresReporting
+        $report = Test-LabMedia -LabSourcesRoot $root -RequireReporting:$requireReporting
     } catch {
         Add-LogLine ("Review media check failed: {0}" -f $_.Exception.Message) 'ERROR'
         return

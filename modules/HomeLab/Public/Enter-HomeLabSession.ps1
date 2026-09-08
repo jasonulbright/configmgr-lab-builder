@@ -16,7 +16,7 @@ function Enter-HomeLabSession {
 
     .PARAMETER Identity
         Credential identity to authenticate as. Default 'Admin'.
-        Other valid: 'ClientPush', 'NAA', 'Join'.
+        Other valid: 'ClientPush', 'NAA', 'Join', 'Reporting'.
 
     .PARAMETER Config
         Pre-loaded config hashtable (from Get-LabConfig). Optional;

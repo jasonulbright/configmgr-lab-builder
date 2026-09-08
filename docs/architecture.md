@@ -5,7 +5,7 @@
 `Install-HomeLab` is a single PowerShell cmdlet that takes a Windows
 host with no Hyper-V, no VMs, no ISOs-mounted, and turns it into a
 working ConfigMgr 2509 lab in 45-90 minutes. The engine lives in
-one PowerShell module (`modules/HomeLab/`), exports seven public
+one PowerShell module (`modules/HomeLab/`), exports eight public
 cmdlets, and has zero PSGallery dependencies. Recovery from any
 failure is `Remove-HomeLab` followed by re-running `Install-HomeLab`;
 the engine is idempotent everywhere.
@@ -66,6 +66,9 @@ the engine is idempotent everywhere.
                        Tail Setup Bootstrap\Log\Summary.txt
                      Set-LabSqlMemory (8 GB cap)
                      Set-LabSqlFirewall (1433 TCP + 1434 UDP)
+                     Install-LabSsrs (unattended; reboot on exit 3010)
+                     Set-LabSsrsConfiguration
+                       (service identity + catalog pair + URLs + init)
                                           │
    05-Domain (cont.) Add-LabSchemaContainer
                        extadsch.exe on CM01
@@ -95,6 +98,9 @@ the engine is idempotent everywhere.
                        (WsusPool IIS tune + SUP role + products +
                         classifications + 02:00 daily sync schedule +
                         initial Sync-CMSoftwareUpdate)
+                     Add-CMRoleFallbackStatusPoint
+                     Add-CMRoleServiceConnectionPoint
+                     Add-CMRoleReportingServicePoint
                      New-CMTestCollection ('HomeLab - Test Deployments'
                        + CLIENT01 direct member + daily 00:00-06:00 MW)
                      Set-CMClientCacheSize (40 GB default-setting)
@@ -119,9 +125,9 @@ short-circuits at the first incomplete step.
 
 ```
 modules/HomeLab/
-    HomeLab.psd1                     # PS 7.6 LTS / .NET 10 floor; 7 functions exported
+    HomeLab.psd1                     # PS 7.6 LTS / .NET 10 floor; 8 functions exported
     HomeLab.psm1                     # Dot-source loader (Helpers/, Private/**, Public/)
-    Public/                          # The 7 exported cmdlets
+    Public/                          # The 8 exported cmdlets
     Helpers/                         # No internal deps; safe to call from anywhere
         Read-LabIni / Write-LabIni        # INI roundtrip (CM + SQL setup configs)
         Write-LabLog                      # Severity logger; text + JSONL
@@ -140,7 +146,7 @@ modules/HomeLab/
         05-Domain/   Install-LabDC, Install-LabRootCA, Add-LabSchemaContainer,
                      Join-LabDomain, New-LabServiceAccounts
         06-Sql/      New-LabSqlConfigIni, Install-LabSqlServer, Set-LabSqlMemory,
-                     Set-LabSqlFirewall
+                     Set-LabSqlFirewall, Install-LabSsrs, Set-LabSsrsConfiguration
         07-CMPrereqs/ Install-LabVcRedist, Install-LabOdbcDriver, Install-LabMsOleDb,
                      Install-LabAdk, Install-LabAdkPe, Install-LabWsus,
                      Set-LabDefenderExclusions
@@ -151,7 +157,9 @@ modules/HomeLab/
                      Set-CMClientPush, Set-CMSoftwareDistributionThreads,
                      Add-CMFullAdministrator, New-CMContentShare,
                      Install-CMSoftwareUpdatePoint, New-CMTestCollection,
-                     Set-CMClientCacheSize
+                     Set-CMClientCacheSize, Add-CMRoleFallbackStatusPoint,
+                     Add-CMRoleServiceConnectionPoint,
+                     Add-CMRoleReportingServicePoint
         10-Tools/    Copy-CMTools, Set-LabAutoStartStop
 ```
 
@@ -279,6 +287,8 @@ partial deploy resumes from the first incomplete step.
 | `Install-LabSqlServer` | `Get-Service MSSQLSERVER` already up → `AlreadyInstalled` |
 | `Set-LabSqlMemory` | `value_in_use` already matches → `AlreadySet` |
 | `Set-LabSqlFirewall` | Per-rule `Get-NetFirewallRule` skip |
+| `Install-LabSsrs` | SSRS Windows service present → `AlreadyInstalled` |
+| `Set-LabSsrsConfiguration` | Initialized report-server instance → `AlreadyConfigured`; existing catalog pair is reused |
 | `Install-LabVcRedist` | exit 1638 = newer-already-present treated as success |
 | `Install-LabOdbcDriver` | exit 1638 = `AlreadyNewer` |
 | `Install-LabMsOleDb` | fail-soft on every error path; `Skipped=true` |
@@ -294,6 +304,9 @@ partial deploy resumes from the first incomplete step.
 | `Add-CMFullAdministrator` | Get-CMAdministrativeUser by name → `AlreadyExists` |
 | `New-CMContentShare` | Get-SmbShare + Get-Acl checks |
 | `Install-CMSoftwareUpdatePoint` | Get-CMSoftwareUpdatePoint by site |
+| `Add-CMRoleFallbackStatusPoint` | Get-CMFallbackStatusPoint by site-system server |
+| `Add-CMRoleServiceConnectionPoint` | Get-CMServiceConnectionPoint by site-system server |
+| `Add-CMRoleReportingServicePoint` | Get-CMReportingServicePoint by site-system server |
 | `New-CMTestCollection` | Get-CMDeviceCollection / direct-member rule / MW each |
 | `Set-CMClientCacheSize` | Set-CMClientSettingClientCache overwrites idempotently |
 | `Copy-CMTools` | Each tool is fail-soft on missing source |

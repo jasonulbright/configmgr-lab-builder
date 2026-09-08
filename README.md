@@ -15,7 +15,7 @@ activation:
 | VM | Role | IP | RAM | vCPU | OS |
 |---|---|---|---|---|---|
 | DC01 | Domain controller, root CA | 192.168.50.10 | 1-2 GB | 2 | Windows Server 2025 |
-| CM01 | SQL Server 2022 + ConfigMgr 2509 site server / MP / DP | 192.168.50.20 | 4-12 GB | 4 | Windows Server 2025 |
+| CM01 | SQL Server 2022 + SSRS + ConfigMgr 2509 site server / MP / DP / SUP / FSP / SCP / RSP | 192.168.50.20 | 4-12 GB | 4 | Windows Server 2025 |
 | CLIENT01 | Windows 11 managed client | 192.168.50.100 | 2-4 GB | 2 | Windows 11 Enterprise |
 
 Larger topologies (split SQL, role-per-server, CAS hierarchies) are
@@ -79,6 +79,7 @@ page for the sign-in-gated ISOs:
 | Windows Server 2025 Eval ISO | `C:\LabSources\ISOs\` | https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2025 |
 | Windows 11 Enterprise Eval ISO | `C:\LabSources\ISOs\` | https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise |
 | SQL Server 2022 Eval ISO | `C:\LabSources\ISOs\` | https://www.microsoft.com/en-us/evalcenter/download-sql-server-2022 (downloads a bootstrapper; run it and pick "Download Media" for the ISO) |
+| SQL Server Reporting Services installer | `C:\LabSources\SoftwarePackages\SQL2022\SQLServerReportingServices.exe` | https://www.microsoft.com/download/details.aspx?id=104502 |
 | ConfigMgr 2509 baseline (extracted) | `C:\LabSources\SoftwarePackages\CM\ConfigMgr_2509\` | https://www.microsoft.com/en-us/evalcenter/download-microsoft-endpoint-configuration-manager (extract with 7-Zip into the `ConfigMgr_2509` subfolder) |
 | ADK offline layout | `C:\LabSources\SoftwarePackages\ADK\Offline\` | `adksetup.exe /quiet /layout C:\LabSources\SoftwarePackages\ADK\Offline` (downloader: https://go.microsoft.com/fwlink/?linkid=2289980) |
 | WinPE offline layout | `C:\LabSources\SoftwarePackages\ADKPE\Offline\` | `adkwinpesetup.exe /quiet /layout C:\LabSources\SoftwarePackages\ADKPE\Offline` (downloader: https://go.microsoft.com/fwlink/?linkid=2289981) |
@@ -292,8 +293,8 @@ Seven built-in topology templates ship in `templates/`:
 
 | Template | VMs | Engine support | When to use |
 |---|---|---|---|
-| `default` | 3 | Full | Smallest fully-functional lab. DC + CM (all roles co-located) + Client. |
-| `two-clients` | 4 | Full | Default plus a second Windows 11 client, so app install/uninstall and supersedence testing gets a clean-machine control instead of checkpoint rollbacks. |
+| `default` | 3 | Full | Smallest fully-functional lab. DC + CM (SQL, SSRS, and all automated CM roles co-located) + Client. |
+| `two-clients` | 4 | Full | Default, including SSRS/RSP, plus a second Windows 11 client for clean-machine app testing. |
 | `split-sql` | 4 | Full | Mirrors enterprise tier-2: dedicated SQL VM. CM site DB lives on SQL01. |
 | `role-per-server` | 7 | Partial (SUP falls back to site server) | Mirrors enterprise tier-1: each CM role on its own VM. |
 | `aio` | 2 | Schema-only | DC + CM bundle on one VM. CM 2509 setup rejects DC-co-resident installs; this template documents the topology but will not produce a working lab. |
@@ -333,7 +334,7 @@ each checkbox to one of these flags.
 | `AdminUser` | Domain admin sAMAccountName (post-promotion) |
 | `ServerOSFilter`, `ClientOSFilter` | Wildcards matched against ISO contents |
 | `DC` / `CM` / `Client` blocks (or canonical `VMs[]`) | Per-VM RAM / CPU / disks / IP / auto-start delay |
-| `ServiceAccounts.{ClientPush,NAA,Join}` | sAMAccountName + password + group memberships |
+| `ServiceAccounts.{ClientPush,NAA,Join,Reporting}` | sAMAccountName + password + group memberships; `Reporting` enables SSRS/RSP automation |
 | `AutoStartAction` / `AutoStopAction` | Hyper-V host-boot behaviour |
 | `ODBCVersion`, `ODBCURL`, `VCRedistX64URL`, `VCRedistX86URL` | External-asset URLs / pinned versions |
 
@@ -345,13 +346,14 @@ deploying to anything you care about.
 
 ## Public surface
 
-The HomeLab module exports seven cmdlets:
+The HomeLab module exports eight cmdlets:
 
 | Cmdlet | What it does |
 |---|---|
 | `Install-HomeLab` | End-to-end deploy. Phases 01-Prereq through 11-PostCM, each independently idempotent. |
 | `Remove-HomeLab` | Provable teardown: removes lab VMs (including strays from other configs, discovered by disk location), VHDX chains, checkpoints, the lab vSwitch, engine-managed hosts entries, and temp debris. `-KeepBaseImages` preserves the image cache for fast rebuilds; `-RemoveBaseImageCache` wipes everything. Verify with `tools\Audit-HomeLabArtifacts.ps1`. |
 | `Test-HomeLab` | Per-VM health probe (state / WinRM / AD / SQL / SMS_EXECUTIVE / CM provider / domain join). Aggregate `OverallReady`. |
+| `Test-LabMedia` | Read-only staged-media pre-flight. Use `-RequireReporting` when the selected config enables Reporting. |
 | `Start-HomeLab` | Start in dependency order: DC -> CM -> CLIENT, with WinRM gates between each. |
 | `Stop-HomeLab` | Graceful Stop-VM in reverse order; `-TurnOff` for crash-stop. |
 | `Connect-HomeLabVM` | `vmconnect.exe` wrapper to a lab VM's console. |
@@ -373,11 +375,13 @@ checks plus an `OverallReady` boolean.
 
 ## After deployment
 
-You get a real site, not a site that merely finished installing. All
-seven site systems report OK on first console launch -- component
-server, management point, distribution point, site server, software
-update point, and both database objects -- under site code `MCM` on
-`CM01.contoso.com`.
+You get a real site, not a site that merely finished installing. The
+default build configures the management point, distribution point,
+software update point, fallback status point, service connection point,
+and reporting services point under site code `MCM` on
+`CM01.contoso.com`. SSRS is initialized on the same VM; its default web
+portal is `http://CM01/Reports` and web-service endpoint is
+`http://CM01/ReportServer`.
 
 ![ConfigMgr console showing all site systems OK](docs/screenshots/lab-console-site-status.png)
 
@@ -393,6 +397,7 @@ Service accounts (created in `OU=Service Accounts,DC=contoso,DC=com`):
 | `CONTOSO\svc-CMPush` | Client Push Installation | Domain Admins |
 | `CONTOSO\svc-CMNAA` | Network Access Account | Domain Users only |
 | `CONTOSO\svc-CMJoin` | OSD task sequence domain-join account | Domain Admins + Remote Desktop Users |
+| `CONTOSO\svc-CMReporting` | SSRS service and Reporting Services Point | Windows Authorization Access Group |
 
 CM 2509 setup auto-grants the user that ran `setup.exe` the Full
 Administrator role; the engine runs setup as `LabAdmin`, so
@@ -499,7 +504,7 @@ does not match. Check:
 Get-ChildItem C:\LabSources\ISOs\*.iso
 ```
 
-Or pass explicit paths: `Install-HomeLab -ServerIsoPath ... -ClientIsoPath ... -SqlIsoPath ... -CMSourcePath ...`
+Or pass explicit paths: `Install-HomeLab -ServerIsoPath ... -ClientIsoPath ... -SqlIsoPath ... -SsrsInstallerPath ... -CMSourcePath ...`
 
 ### CM setup hangs / fails
 
@@ -565,7 +570,7 @@ configmgr-lab-builder/
         HomeLab/
             HomeLab.psd1                # Module manifest (PS 7.6 LTS, .NET 10)
             HomeLab.psm1                # Dot-source loader
-            Public/                     # The 7 exported cmdlets
+            Public/                     # The 8 exported cmdlets
             Helpers/                    # INI / log / config / cred / wait / session / invoke / copy / MAC
             Private/
                 01-Prereq/              # Test-HostPrereq, Install-LabHyperV, Resolve-IsoEdition
@@ -575,12 +580,13 @@ configmgr-lab-builder/
                 05-Domain/              # Install-LabDC, Install-LabRootCA, Add-LabSchemaContainer,
                                         #   Join-LabDomain, New-LabServiceAccounts,
                                         #   Enable-LabClientPushFirewall
-                06-Sql/                 # New-LabSqlConfigIni, Install-LabSqlServer,
-                                        #   Set-LabSqlMemory, Set-LabSqlFirewall
+                06-Sql/                 # SQL Server install/tuning/firewall plus
+                                        #   Install-LabSsrs, Set-LabSsrsConfiguration
                 07-CMPrereqs/           # VC++, ODBC, MSOLEDB, ADK, WinPE, WSUS, Defender exclusions
                 08-CM/                  # New-CMUnattendIni, Install-CMSite, Test-CMSetupLog,
                                         #   Wait-CMReady, Import-CMModule, Resolve-CMSetupLogStatus
-                09-CMConfig/            # Discovery / boundary / SUP / boundary group / DP / MP / accounts
+                09-CMConfig/            # Discovery / boundaries / accounts plus MP / DP / SUP /
+                                        #   FSP / SCP / RSP site-system roles
                 10-Tools/               # Copy-CMTools, Set-LabAutoStartStop
                 11-PostCM/              # Collections, MWs, boot image, OS image, TS stub, applications
     templates/                          # Seven built-in topology templates

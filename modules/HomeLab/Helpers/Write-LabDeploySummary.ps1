@@ -54,7 +54,7 @@ function Write-LabDeploySummary {
     $accounts = @()
     $accounts += [pscustomobject]@{ SAM = $Config.AdminUser; Role = 'Lab admin (orchestrator + CM Full Administrator)' }
     if ($Config.ServiceAccounts) {
-        foreach ($svc in 'ClientPush','NAA','Join') {
+        foreach ($svc in 'ClientPush','NAA','Join','Reporting') {
             if ($Config.ServiceAccounts[$svc]) {
                 $accounts += [pscustomobject]@{
                     SAM  = $Config.ServiceAccounts[$svc].Name
@@ -62,6 +62,7 @@ function Write-LabDeploySummary {
                         'ClientPush' { 'CM Client Push installation account' }
                         'NAA'        { 'CM Network Access Account' }
                         'Join'       { 'OSD task sequence domain-join account' }
+                        'Reporting'  { 'SSRS service and CM Reporting Services Point account' }
                     }
                 }
             }

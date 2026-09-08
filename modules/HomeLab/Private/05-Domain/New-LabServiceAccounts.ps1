@@ -1,12 +1,13 @@
 function New-LabServiceAccounts {
     <#
     .SYNOPSIS
-        Create the three CM service accounts (svc-CMPush, svc-CMNAA,
-        svc-CMJoin) plus the LabAdmin orchestrator under OU=Service Accounts, with prescribed group
-        memberships.
+        Create the three required CM service accounts (svc-CMPush,
+        svc-CMNAA, svc-CMJoin), the optional svc-CMReporting account,
+        and the LabAdmin orchestrator under OU=Service Accounts with
+        prescribed group memberships.
 
     .DESCRIPTION
-        Phase 4 service accounts, with two
+        Phase 5 service accounts, with two
         improvements:
 
           - Uses Invoke-LabCommand (pooled session) instead of AL's

@@ -66,14 +66,15 @@
     )
 
     # Passwords intentionally omitted -- Install-HomeLab fills them from
-    # -LabPassword / interactive prompt. Same password used for all four
-    # accounts (AdminPass + 3 service accounts) by design (homelab scope).
+    # -LabPassword / interactive prompt. Same password used for all five
+    # accounts (AdminPass + 4 service accounts) by design (homelab scope).
     #
-    # Three functional service accounts; LabAdmin (above) is the
+    # Four functional service accounts; LabAdmin (above) is the
     # orchestrator/admin separately. Each service account has one purpose:
     #   ClientPush  -- CM client push installation
     #   NAA         -- Network Access Account (boot images, content)
     #   Join        -- OSD task sequence domain-join account
+    #   Reporting   -- SSRS service and Reporting Services Point account
     ServiceAccounts = @{
         ClientPush = @{
             Name     = 'svc-CMPush'
@@ -89,6 +90,11 @@
             Name     = 'svc-CMJoin'
             Desc     = 'ConfigMgr OSD task sequence domain-join account'
             Group    = 'Domain Admins'
+        }
+        Reporting = @{
+            Name     = 'svc-CMReporting'
+            Desc     = 'ConfigMgr Reporting Services Point account'
+            Group    = 'Windows Authorization Access Group'
         }
     }
 

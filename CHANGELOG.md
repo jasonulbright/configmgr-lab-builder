@@ -1,12 +1,38 @@
 # Changelog
 
-## [1.6.0] - 2026-09-08
+## [1.5.1] - 2026-09-08
 
 ### Added
 
-- Automate Fallback Status Point, Service Connection Point, and Reporting Services Point roles.
-- Install and configure SQL Server Reporting Services automatically.
-- Provision a dedicated Windows account for Reporting Services.
+- **ConfigMgr site-system roles.** Phase 09 now installs the Fallback
+  Status Point, Service Connection Point, and Reporting Services Point
+  in the default co-located lab. Each role has an idempotent probe and
+  is safe to resume.
+- **Automated SQL Server Reporting Services prerequisite.** Phase 06
+  installs SSRS unattended, handles reboot-required exit 3010, creates
+  and connects the report-server database pair, configures the Windows
+  service identity and HTTP URL reservations, and initializes the
+  report server. Existing installations and configured instances are
+  detected and reused.
+- **Dedicated Reporting account.** The default configuration and both
+  fully supported co-located templates provision `svc-CMReporting` for
+  the SSRS service and ConfigMgr Reporting Services Point.
+- **SSRS media pre-flight.** `Test-LabMedia -RequireReporting` makes
+  `SQLServerReportingServices.exe` required when the selected config
+  enables Reporting. The GUI derives this automatically from the
+  selected configuration and blocks Deploy when the installer is absent.
+
+### Fixed
+
+- `-LabPassword` now replaces the Reporting account password alongside
+  the other service-account passwords.
+- SSRS media resolution now honors `-LabSourcesRoot`; callers can also
+  override it with `-SsrsInstallerPath`.
+- SSRS setup preserves quoted `Edition` and `InstallFolder` values,
+  applies the configured timeout in seconds, and resumes Phase 09 when
+  Phase 06 was skipped after a completed prerequisite run.
+- SSRS database creation now resumes safely only when both the catalog
+  and companion TempDB exist, and fails clearly on a mismatched pair.
 
 ## [1.5.0] - 2026-08-14
 

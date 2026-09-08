@@ -1,7 +1,7 @@
 @{
     RootModule        = 'HomeLab.psm1'
-    ModuleVersion     = '1.6.0'
-    # 1.6.0: automate Fallback Status Point, Service Connection Point, and
+    ModuleVersion     = '1.5.1'
+    # 1.5.1: automate Fallback Status Point, Service Connection Point, and
     #        Reporting Services Point roles; install + configure SSRS.
     # 1.5.0: Test-LabMedia pre-flight + GUI Media wizard page (staged-media
     #        check, per-item download/open-folder actions, deploy gate).
@@ -37,7 +37,7 @@
         PSData = @{
             Tags         = @('ConfigMgr','ConfigurationManager','SCCM','HyperV','Lab','HomeLab')
             ProjectUri   = 'https://github.com/jasonulbright/configmgr-lab-builder'
-            ReleaseNotes = 'v1.4.1 fixes a deterministic Phase 08 failure when no offline prerequisite cache is staged: CM setup''s download folder is now created unconditionally, and CM 2509''s terminal failure banner is recognised so setup failures surface immediately instead of timing out. See CHANGELOG.md.'
+            ReleaseNotes = 'v1.5.1 automates the Fallback Status Point, Service Connection Point, and Reporting Services Point, including unattended SSRS installation and configuration plus a dedicated Reporting account. See CHANGELOG.md.'
         }
     }
 }

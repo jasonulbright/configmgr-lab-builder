@@ -24,7 +24,8 @@ function Get-LabConfig {
     .DESCRIPTION
         Wraps Import-PowerShellDataFile and applies HomeLab-specific
         validation: required keys, IP-prefix consistency, MinMemory <=
-        MaxMemory, exactly 3 service accounts, etc.
+        MaxMemory, required service accounts, etc. Reporting is an
+        optional fourth service-account slot that enables SSRS/RSP.
 
         Schema v2 (the canonical shape):
             VMs = @(

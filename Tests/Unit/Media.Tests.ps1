@@ -100,8 +100,10 @@ Describe 'Test-LabMedia on a fully staged tree' {
         Set-Content -Path (Join-Path $sw 'VCRedist\vc_redist.x86.exe') -Value 'x'
         New-Item -ItemType Directory -Force -Path (Join-Path $sw 'ODBC') | Out-Null
         Set-Content -Path (Join-Path $sw 'ODBC\msodbcsql.msi') -Value 'x'
+        New-Item -ItemType Directory -Force -Path (Join-Path $sw 'SQL2022') | Out-Null
+        Set-Content -Path (Join-Path $sw 'SQL2022\SQLServerReportingServices.exe') -Value 'x'
 
-        $script:report = Test-LabMedia -LabSourcesRoot $root
+        $script:report = Test-LabMedia -LabSourcesRoot $root -RequireReporting
     }
 
     It 'passes with zero required items missing' {
@@ -117,6 +119,12 @@ Describe 'Test-LabMedia on a fully staged tree' {
 
     It 'matches the 25H2 CLIENTENTERPRISEEVAL client ISO naming' {
         ($script:report.Items | Where-Object Id -eq 'ClientIso').Found | Should -BeTrue
+    }
+
+    It 'passes the Reporting gate when the SSRS installer is staged' {
+        $ssrs = $script:report.Items | Where-Object Id -eq 'SsrsInstaller'
+        $ssrs.Required | Should -BeTrue
+        $ssrs.Found | Should -BeTrue
     }
 }
 

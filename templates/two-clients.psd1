@@ -102,6 +102,11 @@
             Desc     = 'ConfigMgr OSD task sequence domain-join account'
             Group    = 'Domain Admins'
         }
+        Reporting = @{
+            Name     = 'svc-CMReporting'
+            Desc     = 'ConfigMgr Reporting Services Point account'
+            Group    = 'Windows Authorization Access Group'
+        }
     }
 
     ODBCVersion    = '18.5.2.1'

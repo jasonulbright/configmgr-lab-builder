@@ -224,6 +224,15 @@ Describe 'Per-page named-control surfaces' {
 
 Describe 'GUI chrome and shell-link regression guards' {
 
+    It 'passes the selected config reporting requirement into both media checks' {
+        $entryPath = Join-Path $script:guiRoot 'start-homelab-gui.ps1'
+        $entry = Get-Content -LiteralPath $entryPath -Raw
+
+        $entry | Should -Match "function Test-GuiRequiresReporting"
+        ([regex]::Matches($entry, 'Test-LabMedia -LabSourcesRoot \$root -RequireReporting:\$requireReporting')).Count |
+            Should -Be 2
+    }
+
     It 'uses shell-execute helpers instead of WPF navigation handlers' {
         $entryPath = Join-Path $script:guiRoot 'start-homelab-gui.ps1'
         $entry = Get-Content -LiteralPath $entryPath -Raw

@@ -633,7 +633,7 @@ function Install-HomeLab {
         }
 
         # Service accounts on the DC: LabAdmin (orchestrator/Full Admin)
-        # plus the 3 functional accounts (ClientPush / NAA / Join).
+        # plus ClientPush / NAA / Join and optional Reporting accounts.
         New-LabServiceAccounts `
             -DCComputerName $dcFqdn -DomainCredential $bootstrapCred `
             -DomainName $cfg.DomainName -NetBIOSName $cfg.NetBIOS `

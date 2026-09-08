@@ -31,6 +31,15 @@ Describe 'Built-in templates load via Get-LabConfig' {
         @($cfg.RoleIndex['DomainController'])[0].Name  | Should -Be 'DC01'
         @($cfg.RoleIndex['SiteServer'])[0].Name        | Should -Be 'CM01'
         @($cfg.RoleIndex['Client'])[0].Name            | Should -Be 'CLIENT01'
+        $cfg.ServiceAccounts.ContainsKey('Reporting')  | Should -BeTrue
+    }
+
+    It 'enables Reporting in both fully supported co-located templates' {
+        foreach ($name in 'default.psd1','two-clients.psd1') {
+            $cfg = Get-LabConfig -Path (Join-Path $script:templatesDir $name)
+            $cfg.ServiceAccounts.ContainsKey('Reporting') | Should -BeTrue
+            $cfg.ServiceAccounts.Reporting.Name | Should -Be 'svc-CMReporting'
+        }
     }
 
     It 'loads split-sql.psd1 (SQL on its own VM)' {

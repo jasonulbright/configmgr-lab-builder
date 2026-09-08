@@ -8,8 +8,8 @@ Seven built-in topology templates. Each is a fully-formed
 
 | Template | VMs | Engine support | When to use |
 |---|---|---|---|
-| `default.psd1` | 3 | Full | Smallest fully-functional lab. DC + CM (all CM roles co-located) + Client. |
-| `two-clients.psd1` | 4 | Full | default + a second client, so app install/uninstall testing gets a clean-machine control instead of checkpoint rollbacks. |
+| `default.psd1` | 3 | Full | Smallest fully-functional lab. DC + CM (SQL, SSRS, and all automated CM roles co-located) + Client. |
+| `two-clients.psd1` | 4 | Full | default, including SSRS/RSP, plus a second client for clean-machine app testing. |
 | `split-sql.psd1` | 4 | Full | Mirrors enterprise tier-2: dedicated SQL VM. CM site DB lives on SQL01. |
 | `role-per-server.psd1` | 7 | Partial (SUP falls back to site server) | Mirrors enterprise tier-1: each CM role on its own VM. |
 | `aio.psd1` | 2 | Schema-only | DC + CM role bundle on one VM. CM 2509 setup rejects DC-co-resident installs; this template documents the topology but will not produce a working lab. |

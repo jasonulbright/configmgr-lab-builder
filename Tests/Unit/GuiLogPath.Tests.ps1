@@ -104,6 +104,7 @@ Describe 'Write-LabDeploySummary GUI logs line' {
                 ClientPush = @{ Name = 'svc-CMPush' }
                 NAA        = @{ Name = 'svc-CMNAA' }
                 Join       = @{ Name = 'svc-CMJoin' }
+                Reporting  = @{ Name = 'svc-CMReporting' }
             }
         }
     }
@@ -137,6 +138,21 @@ Describe 'Write-LabDeploySummary GUI logs line' {
             ($script:emitted -join "`n") | Should -Not -Match 'GUI logs:'
             # Guard against a vacuous pass: the summary really did render.
             ($script:emitted -join "`n") | Should -Match 'Engine log:'
+        }
+    }
+
+    It 'includes the Reporting account in the deployment summary' {
+        InModuleScope HomeLab -Parameters @{ Config = $script:config } {
+            param($Config)
+            $script:emitted = [System.Collections.Generic.List[string]]::new()
+
+            Mock Test-HomeLab { $null }
+            Mock Get-LabGuiLogPath { $null }
+            Mock Write-LabLog { $script:emitted.Add($Message) }
+
+            $null = Write-LabDeploySummary -Config $Config
+
+            ($script:emitted -join "`n") | Should -Match 'svc-CMReporting'
         }
     }
 
