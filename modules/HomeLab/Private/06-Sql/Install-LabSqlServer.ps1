@@ -95,6 +95,23 @@ function Install-LabSqlServer {
         [Parameter()]
         [hashtable]$ConfigOverrides,
 
+        # Left unset, New-LabSqlConfigIni's own C: defaults apply. The
+        # caller supplies a dedicated volume only when the topology asked
+        # for one -- templates that declare no SQLDisk have no such volume,
+        # and pointing setup at a drive letter that does not exist fails
+        # an hour into the build.
+        [Parameter()]
+        [string]$SqlUserDbDir,
+
+        [Parameter()]
+        [string]$SqlUserDbLogDir,
+
+        [Parameter()]
+        [string]$SqlTempDbDir,
+
+        [Parameter()]
+        [string]$SqlBackupDir,
+
         [Parameter()]
         [ValidateRange(10, 240)]
         [int]$SetupTimeoutMinutes = 60
@@ -140,6 +157,10 @@ function Install-LabSqlServer {
         Collation           = $Collation
         OutputPath          = $hostIni
     }
+    if ($SqlUserDbDir)    { $iniParams.SqlUserDbDir    = $SqlUserDbDir }
+    if ($SqlUserDbLogDir) { $iniParams.SqlUserDbLogDir = $SqlUserDbLogDir }
+    if ($SqlTempDbDir)    { $iniParams.SqlTempDbDir    = $SqlTempDbDir }
+    if ($SqlBackupDir)    { $iniParams.SqlBackupDir    = $SqlBackupDir }
     $null = New-LabSqlConfigIni @iniParams
 
     if ($ConfigOverrides) {

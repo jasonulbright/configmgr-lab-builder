@@ -17,8 +17,11 @@ function Set-LabDefenderExclusions {
           - CM bin                     C:\Program Files\Microsoft Configuration Manager
           - SMS_DP$ etc                <root>:\SMS_DP$, SMSPKGG$, SMSPKG, SMSPKGSIG, SMSSIG$
           - WSUS content               C:\WSUS
-          - SQL data + log dirs        D:\SQLData, E:\SQLLogs (per S4 default)
-          - SQL tempdb                 D:\SQLTempDb (per S4 default)
+          - SQL data + log dirs        C:\ and the E: SQL volume (both are
+                                       listed; a path on a volume the
+                                       topology did not provision is simply
+                                       never hit)
+          - SQL tempdb / backup        E:\SQLTempDb, E:\SQLBackup
           - Default SQL install        C:\Program Files\Microsoft SQL Server\MSSQL16.MSSQLSERVER
 
         Idempotent: Add-MpPreference is additive and silent on already-
@@ -61,10 +64,12 @@ function Set-LabDefenderExclusions {
         'C:\SMSSIG$'
         'C:\RemoteInstall'
         'C:\Program Files\Microsoft SQL Server\MSSQL16.MSSQLSERVER'
-        'D:\SQLData'
+        'C:\SQLData'
+        'C:\SQLLogs'
+        'E:\SQLData'
         'E:\SQLLogs'
-        'D:\SQLTempDb'
-        'D:\SQLBackup'
+        'E:\SQLTempDb'
+        'E:\SQLBackup'
     )
 
     # Filter nulls/empties: with no -ExtraPaths, @($ExtraPaths) is

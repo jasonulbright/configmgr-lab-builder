@@ -216,7 +216,12 @@ Describe 'Set-LabDefenderExclusions' {
 
         $script:capturedPaths.Count | Should -BeGreaterThan 10
         $script:capturedPaths | Should -Contain 'C:\Program Files\Microsoft Configuration Manager'
-        $script:capturedPaths | Should -Contain 'D:\SQLData'
+        # Both SQL layouts are listed: C: for a single-volume topology and
+        # E: for one that provisioned a SQL disk. An exclusion for a volume
+        # that does not exist is simply never hit. This assertion used to
+        # name 'D:\SQLData', a drive the engine never created.
+        $script:capturedPaths | Should -Contain 'C:\SQLData'
+        $script:capturedPaths | Should -Contain 'E:\SQLData'
         $script:capturedPaths | Should -Contain 'D:\Extra1'
         $script:capturedPaths | Should -Contain 'E:\Extra2'
     }

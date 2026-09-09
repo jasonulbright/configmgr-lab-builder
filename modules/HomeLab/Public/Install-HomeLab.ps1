@@ -308,6 +308,14 @@ function Install-HomeLab {
     $supVM    = Resolve-LabVM -Config $cfg -Role SoftwareUpdatePoint
     $clientVMs = @(Get-LabVMByRole -Config $cfg -Role Client)
 
+    # Drive letters for the optional data volumes, resolved once so every
+    # phase agrees. $null means the topology asked for no such volume, and
+    # downstream phases then keep their own C: defaults instead of pointing
+    # setup at a drive letter that was never provisioned -- only config.psd1
+    # declares SQLDisk/DataDisk; none of the templates do.
+    $sqlDrive    = if ($sqlVM.ContainsKey('SQLDisk')   -and [int]$sqlVM.SQLDisk   -gt 0) { 'E' } else { $null }
+    $cmDataDrive = if ($siteVM.ContainsKey('DataDisk') -and [int]$siteVM.DataDisk -gt 0) { 'F' } else { $null }
+
     # CAS hierarchy (S16). The CentralAdministrationSite role is part
     # of the schema so CAS topologies can be defined and validated,
     # but the orchestrator does not yet plumb the CAS install + child
@@ -474,12 +482,24 @@ function Install-HomeLab {
             $isClientOnly = ($vm.Roles.Count -eq 1) -and ($vm.Roles[0] -eq 'Client')
             $parent = if ($isClientOnly) { $clientBase.Path } else { $serverBase.Path }
             $disk = if ($vm.ContainsKey('OSDiskSize')) { [int]$vm.OSDiskSize } else { 0 }
+
+            # SQLDisk / DataDisk are optional per-VM sizes in GB. Attach
+            # order fixes the drive letters: SQL first (E:), then data (F:).
+            $dataDisks = @()
+            if ($vm.ContainsKey('SQLDisk')  -and [int]$vm.SQLDisk  -gt 0) {
+                $dataDisks += @{ Label = 'SQL';  SizeGB = [int]$vm.SQLDisk;  DriveLetter = 'E' }
+            }
+            if ($vm.ContainsKey('DataDisk') -and [int]$vm.DataDisk -gt 0) {
+                $dataDisks += @{ Label = 'Data'; SizeGB = [int]$vm.DataDisk; DriveLetter = 'F' }
+            }
+
             @{
                 Name   = $vm.Name
                 IP     = "$($vm.IP)/24"
                 Mac    = New-LabMacAddress -IPAddress $vm.IP
                 Memory = $vm.Memory; Min = $vm.MinMemory; Max = $vm.MaxMemory
                 Cpu    = $vm.Processors; Disk = $disk
+                DataDisks = $dataDisks
                 Parent = $parent
             }
         }
@@ -522,6 +542,7 @@ function Install-HomeLab {
                 -MaxMemoryBytes $j.Max `
                 -ProcessorCount $j.Cpu `
                 -OSDiskSize $j.Disk `
+                -DataDisks $j.DataDisks `
                 -AdministratorPassword $using:cfg.AdminPass `
                 -LabImagePath $using:LabImagePath `
                 -Force
@@ -776,15 +797,24 @@ function Install-HomeLab {
         }
         if (-not $domainCred) { $domainCred = Get-LabCredential -Identity Admin -Config $cfg }
 
-        Install-LabSqlServer `
-            -ComputerName $sqlVM.Name -DomainCredential $domainCred `
-            -IsoPath $SqlIsoPath `
-            -SaPassword $cfg.AdminPass `
-            -SqlSysAdminAccounts @(
+        $sqlArgs = @{
+            ComputerName        = $sqlVM.Name
+            DomainCredential    = $domainCred
+            IsoPath             = $SqlIsoPath
+            SaPassword          = $cfg.AdminPass
+            SqlSysAdminAccounts = @(
                 'BUILTIN\Administrators'
                 "$($cfg.NetBIOS)\Domain Admins"
                 "$($cfg.NetBIOS)\$($siteVM.Name)$"
-            ) | Out-Null
+            )
+        }
+        if ($sqlDrive) {
+            $sqlArgs.SqlUserDbDir    = "${sqlDrive}:\SQLData"
+            $sqlArgs.SqlUserDbLogDir = "${sqlDrive}:\SQLLogs"
+            $sqlArgs.SqlTempDbDir    = "${sqlDrive}:\SQLTempDb"
+            $sqlArgs.SqlBackupDir    = "${sqlDrive}:\SQLBackup"
+        }
+        Install-LabSqlServer @sqlArgs | Out-Null
 
         Set-LabSqlMemory   -ComputerName $sqlVM.Name -DomainCredential $domainCred | Out-Null
         Set-LabSqlFirewall -ComputerName $sqlVM.Name -DomainCredential $domainCred | Out-Null
@@ -938,11 +968,19 @@ function Install-HomeLab {
             }
         }
 
-        Install-CMSite `
-            -ComputerName $siteVM.Name -DomainCredential $domainCred `
-            -SiteCode $cfg.SiteCode -SiteName $cfg.SiteName `
-            -CMServerFqdn "$($siteVM.Name).$($cfg.DomainName)" `
-            -CMPreReqsPath $CMPreReqsPath | Out-Null
+        $cmArgs = @{
+            ComputerName     = $siteVM.Name
+            DomainCredential = $domainCred
+            SiteCode         = $cfg.SiteCode
+            SiteName         = $cfg.SiteName
+            CMServerFqdn     = "$($siteVM.Name).$($cfg.DomainName)"
+            CMPreReqsPath    = $CMPreReqsPath
+        }
+        if ($sqlDrive) {
+            $cmArgs.SQLDataFilePath = "${sqlDrive}:\SQLData"
+            $cmArgs.SQLLogFilePath  = "${sqlDrive}:\SQLLogs"
+        }
+        Install-CMSite @cmArgs | Out-Null
 
         # CM setup writes machine-wide $env:SMS_ADMIN_UI_PATH and installs
         # the AdminConsole/PowerShell module. Cached PSSessions captured
@@ -959,8 +997,15 @@ function Install-HomeLab {
         $cmName = $siteVM.Name
         $cmFqdn = "$($siteVM.Name).$($cfg.DomainName)"
 
-        New-CMContentShare -ComputerName $cmName -DomainCredential $domainCred `
-            -NetBIOSName $cfg.NetBIOS -NAAAccount $cfg.ServiceAccounts.NAA.Name | Out-Null
+        $shareArgs = @{
+            ComputerName     = $cmName
+            DomainCredential = $domainCred
+            NetBIOSName      = $cfg.NetBIOS
+            NAAAccount       = $cfg.ServiceAccounts.NAA.Name
+            AdminUser        = $cfg.AdminUser
+        }
+        if ($cmDataDrive) { $shareArgs.SharePath = "${cmDataDrive}:\ContentShare" }
+        New-CMContentShare @shareArgs | Out-Null
 
         # No explicit Add-CMFullAdministrator call needed: CM setup auto-
         # adds the user account that ran setup.exe to the 'Full Administrator'

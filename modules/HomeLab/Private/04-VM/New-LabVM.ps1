@@ -159,6 +159,13 @@ function New-LabVM {
         [Parameter()]
         [int]$OSDiskSize,
 
+        # Extra data volumes, attached after the OS disk and initialised
+        # in-guest once WinRM is up. Each entry: @{ Label; SizeGB; DriveLetter }.
+        # Order is the SCSI attach order, which is also the order they are
+        # lettered, so a caller gets deterministic drive letters.
+        [Parameter()]
+        [hashtable[]]$DataDisks = @(),
+
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [string]$AdministratorPassword,
@@ -262,6 +269,25 @@ function New-LabVM {
 
     $null = Add-VMNetworkAdapter -VMName $VMName -Name 'NAT' -SwitchName $DefaultSwitchName -Passthru -ErrorAction Stop
 
+    # 4b. Data volumes. Dynamic VHDX so an unused 50GB disk costs nothing
+    # on the host until it is written to. Created next to the OS disk and
+    # removed with it by the bare-metal teardown.
+    $attachedDisks = @()
+    foreach ($d in $DataDisks) {
+        foreach ($k in 'Label','SizeGB','DriveLetter') {
+            if (-not $d.ContainsKey($k)) { throw "New-LabVM: DataDisks entry for '$VMName' is missing '$k'." }
+        }
+        $diskPath = Join-Path $LabImagePath ('{0}-{1}.vhdx' -f $VMName, $d.Label)
+        if (Test-Path $diskPath) {
+            if (-not $Force) { throw "New-LabVM: data disk already exists at $diskPath. Re-run with -Force." }
+            Remove-Item -Path $diskPath -Force
+        }
+        Write-LabLog "Creating $($d.SizeGB)GB data disk '$($d.Label)' ($($d.DriveLetter):) for '$VMName'" -Status RUN
+        $null = New-VHD -Path $diskPath -SizeBytes ($d.SizeGB * 1GB) -Dynamic -ErrorAction Stop
+        Add-VMHardDiskDrive -VMName $VMName -Path $diskPath -ErrorAction Stop
+        $attachedDisks += [pscustomobject]@{ Label = $d.Label; SizeGB = $d.SizeGB; DriveLetter = $d.DriveLetter; Path = $diskPath }
+    }
+
     Write-LabLog "VM '$VMName' configured: $ProcessorCount vCPU, $([math]::Round($MemoryStartupBytes/1GB))GB startup memory, lab MAC $macDash" -Status INFO
 
     # 5. Per-VM Unattend.xml
@@ -300,6 +326,36 @@ function New-LabVM {
         if (-not $ready) {
             throw "New-LabVM: VM '$VMName' did not reach WinRM-ready within ${WinRMTimeoutSeconds}s. Check that the host vEthernet ($LabSwitchName) has an IP on the lab subnet, that the VM finished sysprep first-boot, and that the lab MAC pinned correctly."
         }
+
+        # 9. Bring the data volumes online in-guest. Raw disks are matched
+        # by SCSI location, not by size: two disks of equal size are
+        # otherwise indistinguishable and would letter non-deterministically.
+        if ($attachedDisks.Count -gt 0) {
+            $spec = @($attachedDisks | ForEach-Object {
+                @{ Label = $_.Label; DriveLetter = $_.DriveLetter }
+            })
+            Invoke-LabCommand -ComputerName $VMName -Credential $localCred `
+                -Activity "Initialise data volumes on $VMName" -ScriptBlock {
+                    param($Spec)
+                    # RAW disks in SCSI-controller order == the order they
+                    # were attached by the caller.
+                    $raw = @(Get-Disk | Where-Object PartitionStyle -eq 'RAW' | Sort-Object Number)
+                    if ($raw.Count -lt $Spec.Count) {
+                        throw "Expected $($Spec.Count) raw data disk(s), found $($raw.Count)."
+                    }
+                    for ($i = 0; $i -lt $Spec.Count; $i++) {
+                        $letter = $Spec[$i].DriveLetter
+                        Initialize-Disk -Number $raw[$i].Number -PartitionStyle GPT -ErrorAction Stop
+                        $null = New-Partition -DiskNumber $raw[$i].Number -UseMaximumSize -DriveLetter $letter
+                        $null = Format-Volume -DriveLetter $letter -FileSystem NTFS `
+                                    -NewFileSystemLabel $Spec[$i].Label -Confirm:$false -Force
+                    }
+                } -ArgumentList (,$spec) | Out-Null
+
+            foreach ($d in $attachedDisks) {
+                Write-LabLog "VM '$VMName': $($d.DriveLetter): ready ($($d.Label), $($d.SizeGB)GB)" -Status OK
+            }
+        }
     }
 
     return [pscustomobject]@{
@@ -313,5 +369,6 @@ function New-LabVM {
         Gateway       = $Gateway
         ProcessorCount = $ProcessorCount
         MemoryStartupGB = [math]::Round($MemoryStartupBytes/1GB)
+        DataDisks      = $attachedDisks
     }
 }

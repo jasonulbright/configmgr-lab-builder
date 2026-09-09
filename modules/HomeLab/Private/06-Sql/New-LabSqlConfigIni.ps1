@@ -46,17 +46,20 @@ function New-LabSqlConfigIni {
         Default C:\Program Files\Microsoft SQL Server\.
 
     .PARAMETER SqlUserDbDir
-        User database default folder. Default 'D:\SQLData' to keep CM
-        DB off C:\.
+        User database default folder. Default 'C:\SQLData'. Install-HomeLab
+        overrides this to the SQL volume when the topology declares SQLDisk.
 
     .PARAMETER SqlUserDbLogDir
-        User log default folder. Default 'E:\SQLLogs'.
+        User log default folder. Default 'C:\SQLLogs'. Overridden the same
+        way as SqlUserDbDir.
 
     .PARAMETER SqlTempDbDir
-        TempDB folder. Default 'D:\SQLTempDb'.
+        TempDB folder. Default 'C:\SQLTempDb'. Overridden the same way as
+        SqlUserDbDir.
 
     .PARAMETER SqlBackupDir
-        Backup folder. Default 'D:\SQLBackup'.
+        Backup folder. Default 'C:\SQLBackup'. Overridden the same way as
+        SqlUserDbDir.
 
     .PARAMETER OutputPath
         Path for the INI file. Default

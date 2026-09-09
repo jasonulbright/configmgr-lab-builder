@@ -1,6 +1,8 @@
 @{
     RootModule        = 'HomeLab.psm1'
-    ModuleVersion     = '1.5.1'
+    ModuleVersion     = '1.6.0'
+    # 1.6.0: provision the SQL (E:) and data (F:) volumes SQLDisk/DataDisk
+    #        always described; grant the lab admin on the content share.
     # 1.5.1: automate Fallback Status Point, Service Connection Point, and
     #        Reporting Services Point roles; install + configure SSRS.
     # 1.5.0: Test-LabMedia pre-flight + GUI Media wizard page (staged-media
@@ -37,7 +39,7 @@
         PSData = @{
             Tags         = @('ConfigMgr','ConfigurationManager','SCCM','HyperV','Lab','HomeLab')
             ProjectUri   = 'https://github.com/jasonulbright/configmgr-lab-builder'
-            ReleaseNotes = 'v1.5.1 automates the Fallback Status Point, Service Connection Point, and Reporting Services Point, including unattended SSRS installation and configuration plus a dedicated Reporting account. See CHANGELOG.md.'
+            ReleaseNotes = 'v1.6.0 provisions the dedicated SQL and content volumes that SQLDisk and DataDisk always described but never created, and fixes a content share that a non-elevated console session could not open. See CHANGELOG.md.'
         }
     }
 }

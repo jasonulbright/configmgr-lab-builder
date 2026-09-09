@@ -1,5 +1,49 @@
 # Changelog
 
+## [1.6.0] - 2026-09-09
+
+### Added
+
+- **Dedicated SQL and content volumes on the site server.** `SQLDisk` and
+  `DataDisk` in `config.psd1` are now provisioned: dynamic VHDXs are
+  created, attached, and formatted in-guest as `E:` (SQL) and `F:` (Data).
+  SQL data, log, TempDB, and backup directories move to `E:`, and the
+  content share moves to `F:`. Both keys were previously inert -- declared
+  since the first release but read by nothing, so every site server came up
+  as a single OS volume with SQL, the content library, WSUS, and package
+  sources all competing for `C:`.
+
+  Topologies that declare neither key are unchanged and stay on `C:`. No
+  shipped template declares them, so template builds keep the single-volume
+  layout.
+
+### Fixed
+
+- **The content share was unreachable from the site server console.** Its
+  only Full-Control grants were `Domain Admins` (share) and
+  `BUILTIN\Administrators` (NTFS). An administrator's UAC-filtered token
+  marks both of those groups use-for-deny-only, so neither ACE fired from a
+  non-elevated Explorer session and the interactive user was denied access
+  to the share they are meant to populate with OS media, application
+  sources, and task sequence content. The lab admin is now granted by user
+  SID on both layers, which is not subject to token filtering.
+
+- **Content share ACL repair only ever fixed two of six entries.** The
+  create and repair paths were written separately, and the repair path
+  reconciled `SYSTEM` and the site server computer account only. A share
+  missing any other grant -- including the `Domain Admins` entry -- stayed
+  broken across re-runs while the phase still reported success. A single
+  desired-state table now drives both paths, and the result object reports
+  which entries were repaired.
+
+- **Corrected engine paths that referenced volumes the engine never
+  created.** Defender exclusions, the SQL configuration INI, and the CM
+  unattend INI documented or excluded `D:\SQLData`, `E:\SQLLogs`, and
+  `E:\ContentShare` on a single-volume machine. Defender now covers both
+  the `C:` and `E:` layouts, and the parameter documentation matches the
+  actual defaults.
+
+
 ## [1.5.1] - 2026-09-08
 
 ### Added

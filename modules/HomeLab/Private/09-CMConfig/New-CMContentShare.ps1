@@ -12,6 +12,16 @@ function New-CMContentShare {
         sets NTFS + SMB ACLs that match the lab pattern:
 
           - Domain Admins:           Full
+          - AdminUser (LabAdmin):    Full   (share + NTFS, by user SID.
+                                             An admin's UAC-filtered token
+                                             marks Administrators and Domain
+                                             Admins use-for-deny-only, so
+                                             neither of those ACEs fires from
+                                             a non-elevated Explorer session:
+                                             the console user could not
+                                             populate the share without
+                                             elevating. A plain user SID is
+                                             never filtered.)
           - NT AUTHORITY\SYSTEM:     Full   (SHARE level -- Distribution
                                              Manager runs as SYSTEM and
                                              reads \\self\share loopback;
@@ -46,9 +56,14 @@ function New-CMContentShare {
         sAMAccountName of the NAA (e.g. svc-CMNAA). Domain prefix is
         added inside the script block.
 
+    .PARAMETER AdminUser
+        sAMAccountName of the lab admin (e.g. LabAdmin). Granted Full on
+        both the share and NTFS so the interactive console user can
+        populate the share without elevating.
+
     .PARAMETER SharePath
-        Local path on the VM. Default 'E:\ContentShare' (E: is the
-        CM-Data disk per S2 / config.psd1).
+        Local path on the VM. Default 'C:\ContentShare'. CM01 is
+        provisioned with a single OS volume, so C: is the only option.
 
     .PARAMETER ShareName
         SMB share name. Default 'ContentShare$' (hidden).
@@ -78,6 +93,10 @@ function New-CMContentShare {
         [ValidateNotNullOrEmpty()]
         [string]$NAAAccount,
 
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$AdminUser,
+
         [Parameter()]
         [string]$SharePath = 'C:\ContentShare',
 
@@ -95,34 +114,59 @@ function New-CMContentShare {
 
     $result = Invoke-LabCommand -ComputerName $ComputerName -Credential $DomainCredential `
         -Activity 'Create CM content share' -ScriptBlock {
-            param($SharePath, $ShareName, $Folders, $NetBIOS, $NAAAccount)
+            param($SharePath, $ShareName, $Folders, $NetBIOS, $NAAAccount, $AdminUser)
 
             New-Item -Path $SharePath -ItemType Directory -Force | Out-Null
             foreach ($f in $Folders) {
                 New-Item -Path (Join-Path $SharePath $f) -ItemType Directory -Force | Out-Null
             }
 
+            # Single desired-state table drives both the create and the
+            # repair path. Splitting them let the repair path fall behind:
+            # it only ever reconciled SYSTEM and the computer account, so a
+            # share missing its Domain Admins grant stayed broken while the
+            # function still reported OK.
+            $desiredShare = [ordered]@{
+                "$NetBIOS\Domain Admins"        = 'Full'
+                'NT AUTHORITY\SYSTEM'           = 'Full'
+                "$NetBIOS\$AdminUser"           = 'Full'
+                "$NetBIOS\Domain Computers"     = 'Read'
+                "$NetBIOS\$NAAAccount"          = 'Read'
+                "$NetBIOS\$env:COMPUTERNAME$"   = 'Read'
+            }
+
             $shareCreated = $false
             if (-not (Get-SmbShare -Name $ShareName -ErrorAction SilentlyContinue)) {
-                New-SmbShare -Name $ShareName -Path $SharePath `
-                    -FullAccess "$NetBIOS\Domain Admins", 'NT AUTHORITY\SYSTEM' `
-                    -ReadAccess "$NetBIOS\Domain Computers", "$NetBIOS\$NAAAccount", "$NetBIOS\$env:COMPUTERNAME$" |
-                    Out-Null
+                New-SmbShare -Name $ShareName -Path $SharePath | Out-Null
+                # New-SmbShare seeds Everyone:Read. Drop it -- the desired
+                # table below is the whole ACL.
+                Revoke-SmbShareAccess -Name $ShareName -AccountName 'Everyone' -Force -ErrorAction SilentlyContinue | Out-Null
                 $shareCreated = $true
-            } else {
-                # Idempotent repair for shares created by older engine
-                # versions that omitted the SYSTEM share-level grant.
-                $existing = @(Get-SmbShareAccess -Name $ShareName | ForEach-Object AccountName)
-                if ('NT AUTHORITY\SYSTEM' -notin $existing) {
-                    Grant-SmbShareAccess -Name $ShareName -AccountName 'NT AUTHORITY\SYSTEM' -AccessRight Full -Force | Out-Null
-                }
-                if ("$NetBIOS\$env:COMPUTERNAME$" -notin $existing) {
-                    Grant-SmbShareAccess -Name $ShareName -AccountName "$NetBIOS\$env:COMPUTERNAME$" -AccessRight Read -Force | Out-Null
+            }
+
+            $existing = @{}
+            foreach ($a in Get-SmbShareAccess -Name $ShareName) {
+                if ($a.AccessControlType -eq 'Allow') { $existing[$a.AccountName] = [string]$a.AccessRight }
+            }
+            $shareRepaired = @()
+            foreach ($account in $desiredShare.Keys) {
+                if ($existing[$account] -ne $desiredShare[$account]) {
+                    Grant-SmbShareAccess -Name $ShareName -AccountName $account `
+                        -AccessRight $desiredShare[$account] -Force | Out-Null
+                    $shareRepaired += $account
                 }
             }
 
+            # NTFS. $AdminUser is granted explicitly by user SID rather than
+            # relying on BUILTIN\Administrators: an admin's UAC-filtered token
+            # marks Administrators and Domain Admins use-for-deny-only, so
+            # neither ACE fires from a non-elevated Explorer session and the
+            # console user cannot populate the share without elevating.
             $acl = Get-Acl -Path $SharePath
             $rules = @(
+                New-Object System.Security.AccessControl.FileSystemAccessRule(
+                    "$NetBIOS\$AdminUser",       'FullControl',
+                    'ContainerInherit,ObjectInherit', 'None', 'Allow')
                 New-Object System.Security.AccessControl.FileSystemAccessRule(
                     "$env:COMPUTERNAME$",      'Read',
                     'ContainerInherit,ObjectInherit', 'None', 'Allow')
@@ -140,9 +184,10 @@ function New-CMContentShare {
                 SharePath     = $SharePath
                 ShareName     = $ShareName
                 ShareCreated  = $shareCreated
+                ShareRepaired = $shareRepaired
                 FolderCount   = $Folders.Count
             }
-        } -ArgumentList $SharePath, $ShareName, $Folders, $NetBIOSName, $NAAAccount
+        } -ArgumentList $SharePath, $ShareName, $Folders, $NetBIOSName, $NAAAccount, $AdminUser
 
     Write-LabLog "[$ComputerName] Content share ready: \\$ComputerName\$ShareName" -Status OK
     return $result

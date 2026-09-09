@@ -121,6 +121,14 @@ function Install-CMSite {
         [Parameter()]
         [string]$CMPreReqsPath,
 
+        # Left unset, New-CMUnattendIni's own C: defaults apply. Only set
+        # when the topology provisioned a dedicated SQL volume.
+        [Parameter()]
+        [string]$SQLDataFilePath,
+
+        [Parameter()]
+        [string]$SQLLogFilePath,
+
         [Parameter()]
         [ValidateSet('CB','TP')]
         [string]$Branch = 'CB',
@@ -282,13 +290,19 @@ function Install-CMSite {
 
     # 4. Build + push the unattend INI.
     $hostIni = Join-Path $env:TEMP ('homelab-cm-config-{0}.ini' -f $ComputerName)
-    $iniPath = New-CMUnattendIni `
-        -CMServerFqdn $CMServerFqdn `
-        -SQLServerFqdn $SQLServerFqdn `
-        -SiteCode $SiteCode -SiteName $SiteName `
-        -Branch $Branch -ProductID $ProductID `
-        -PrerequisitePathHasFiles $prereqHasFiles `
-        -OutputPath $hostIni
+    $iniArgs = @{
+        CMServerFqdn             = $CMServerFqdn
+        SQLServerFqdn            = $SQLServerFqdn
+        SiteCode                 = $SiteCode
+        SiteName                 = $SiteName
+        Branch                   = $Branch
+        ProductID                = $ProductID
+        PrerequisitePathHasFiles = $prereqHasFiles
+        OutputPath               = $hostIni
+    }
+    if ($SQLDataFilePath) { $iniArgs.SQLDataFilePath = $SQLDataFilePath }
+    if ($SQLLogFilePath)  { $iniArgs.SQLLogFilePath  = $SQLLogFilePath }
+    $iniPath = New-CMUnattendIni @iniArgs
 
     Copy-LabFile -ComputerName $ComputerName -Credential $DomainCredential `
                  -Path $iniPath -Destination 'C:\Install\ConfigurationFile-CM.ini' `

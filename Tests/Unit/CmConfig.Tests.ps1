@@ -148,18 +148,69 @@ Describe 'Add-CMFullAdministrator' {
 }
 
 Describe 'New-CMContentShare' {
-    It 'forwards default Folders to the inside-VM script' {
-        $script:capturedFolders = $null
+
+    BeforeEach {
+        $script:captured = $null
         Mock Invoke-LabCommand -MockWith {
             param($ComputerName, $Credential, $ScriptBlock, $ArgumentList, $Activity)
-            $script:capturedFolders = $ArgumentList[2]
-            return [pscustomobject]@{ SharePath = 'E:\ContentShare'; ShareName = 'ContentShare$'
-                                       ShareCreated = $true; FolderCount = $ArgumentList[2].Count }
+            $script:captured = @{ Args = $ArgumentList; Body = $ScriptBlock.ToString() }
+            return [pscustomobject]@{ SharePath = 'C:\ContentShare'; ShareName = 'ContentShare$'
+                                       ShareCreated = $true; ShareRepaired = @()
+                                       FolderCount = $ArgumentList[2].Count }
         }
+    }
+
+    It 'forwards default Folders to the inside-VM script' {
         New-CMContentShare -ComputerName CM01 -DomainCredential (New-FakeCred) `
-            -NetBIOSName CONTOSO -NAAAccount svc-CMNAA | Out-Null
-        $script:capturedFolders | Should -Contain 'Applications'
-        $script:capturedFolders | Should -Contain 'SoftwareUpdates'
+            -NetBIOSName CONTOSO -NAAAccount svc-CMNAA -AdminUser LabAdmin | Out-Null
+        $script:captured.Args[2] | Should -Contain 'Applications'
+        $script:captured.Args[2] | Should -Contain 'SoftwareUpdates'
+    }
+
+    It 'requires AdminUser' {
+        { New-CMContentShare -ComputerName CM01 -DomainCredential (New-FakeCred) `
+            -NetBIOSName CONTOSO -NAAAccount svc-CMNAA } |
+            Should -Throw '*AdminUser*'
+    }
+
+    It 'forwards AdminUser to the inside-VM script' {
+        New-CMContentShare -ComputerName CM01 -DomainCredential (New-FakeCred) `
+            -NetBIOSName CONTOSO -NAAAccount svc-CMNAA -AdminUser LabAdmin | Out-Null
+        $script:captured.Args[5] | Should -Be 'LabAdmin'
+    }
+
+    # An admin's UAC-filtered token marks Administrators and Domain Admins
+    # use-for-deny-only, so a share whose only Full grants are those two is
+    # unreachable from a non-elevated Explorer session on the site server.
+    # The lab admin must be granted by user SID on BOTH layers.
+    It 'grants the lab admin on the share and on NTFS' {
+        New-CMContentShare -ComputerName CM01 -DomainCredential (New-FakeCred) `
+            -NetBIOSName CONTOSO -NAAAccount svc-CMNAA -AdminUser LabAdmin | Out-Null
+        $body = $script:captured.Body
+        $body.Contains('"$NetBIOS\$AdminUser"') | Should -BeTrue
+        # ...and on NTFS, not just the share.
+        ([regex]::Matches($body, 'FileSystemAccessRule')).Count | Should -BeGreaterThan 3
+    }
+
+    # The repair path used to reconcile only SYSTEM and the computer account,
+    # so a share missing its Domain Admins grant stayed broken while the
+    # function still reported OK.
+    It 'reconciles every desired share ACE, not just SYSTEM and the computer account' {
+        New-CMContentShare -ComputerName CM01 -DomainCredential (New-FakeCred) `
+            -NetBIOSName CONTOSO -NAAAccount svc-CMNAA -AdminUser LabAdmin | Out-Null
+        $body = $script:captured.Body
+        $body.Contains('desiredShare') | Should -BeTrue
+        foreach ($principal in @('Domain Admins', 'NT AUTHORITY\SYSTEM', 'Domain Computers')) {
+            $body.Contains($principal) | Should -BeTrue
+        }
+        # One reconcile loop drives both create and repair.
+        ([regex]::Matches($body, 'Grant-SmbShareAccess')).Count | Should -Be 1
+    }
+
+    It 'reports which ACEs it repaired' {
+        $r = New-CMContentShare -ComputerName CM01 -DomainCredential (New-FakeCred) `
+            -NetBIOSName CONTOSO -NAAAccount svc-CMNAA -AdminUser LabAdmin
+        $r.PSObject.Properties.Name | Should -Contain 'ShareRepaired'
     }
 }
 

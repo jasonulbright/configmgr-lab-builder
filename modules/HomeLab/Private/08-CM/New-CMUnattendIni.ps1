@@ -81,7 +81,8 @@ function New-CMUnattendIni {
         Default 'C:\SQLData' (single-disk default; templates with a dedicated SQL volume override via -SQLDataFilePath).
 
     .PARAMETER SQLLogFilePath
-        Default 'E:\SQLLogs' (matches S4 default).
+        Default 'C:\SQLLogs' (single-disk default; overridden the same way
+        as SQLDataFilePath).
 
     .PARAMETER OutputPath
         Output file. Default $env:TEMP\HomeLab-CM-ConfigurationFile.ini.
