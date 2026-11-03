@@ -165,7 +165,7 @@ function Install-CMSite {
                 $cm = Get-CimInstance -Namespace "ROOT\SMS\site_$Site" -ClassName SMS_Site -ErrorAction Stop |
                     Where-Object { $_.SiteCode -eq $Site } | Select-Object -First 1
                 if ($cm) { return [pscustomobject]@{ Installed = $true; Version = $cm.Version } }
-            } catch { }
+            } catch { <# The probe for an existing CM site treats an error as not installed, as the code comment states. #> $null = $_ }
             return [pscustomobject]@{ Installed = $false }
         } -ArgumentList $SiteCode
 

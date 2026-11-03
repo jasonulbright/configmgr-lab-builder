@@ -134,7 +134,7 @@ function Add-LabSchemaContainer {
             $existing = $null
             try {
                 $existing = Get-ADObject -Identity $smPath -ErrorAction Stop
-            } catch { }
+            } catch { <# The existence probe for the AD container treats an error as not found, and the next step creates it. #> $null = $_ }
 
             if (-not $existing) {
                 $null = New-ADObject -Type Container -Name 'System Management' `

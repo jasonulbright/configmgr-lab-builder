@@ -71,7 +71,7 @@ function Install-LabHyperV {
                 RebootRequired = $false
             }
         }
-    } catch { }
+    } catch { <# The Hyper-V running probe is optional, and the code falls through to the service check and the install path. #> $null = $_ }
 
     try {
         $vmms = Get-Service -Name vmms -ErrorAction Stop
@@ -83,7 +83,7 @@ function Install-LabHyperV {
                 RebootRequired = $false
             }
         }
-    } catch { }
+    } catch { <# The vmms service probe is optional, and the code falls through to the install path. #> $null = $_ }
 
     if ($isServer) {
         $existing = if (Get-Command Get-WindowsFeature -ErrorAction SilentlyContinue) {

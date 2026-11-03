@@ -108,7 +108,7 @@ function Install-CMSoftwareUpdatePoint {
             $poolPath = 'IIS:\AppPools\WsusPool'
             if (Test-Path $poolPath) {
                 Set-ItemProperty $poolPath -Name recycling.periodicRestart.privateMemory -Value 0
-                try { Set-ItemProperty $poolPath -Name recycling.periodicRestart.memory -Value 0 } catch { }
+                try { Set-ItemProperty $poolPath -Name recycling.periodicRestart.memory -Value 0 } catch { <# Setting the optional WsusPool memory recycling property is best-effort tuning, and later settings still apply. #> $null = $_ }
                 Set-ItemProperty $poolPath -Name queueLength -Value 2000
                 Set-ItemProperty $poolPath -Name processModel.idleTimeout -Value ([TimeSpan]::Zero)
                 Set-ItemProperty $poolPath -Name processModel.pingingEnabled -Value $false

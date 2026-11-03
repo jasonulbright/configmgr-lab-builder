@@ -46,7 +46,7 @@ function Mount-LabIso {
             }
         }
         # Attached but no letter: clean state and re-mount below.
-        try { Dismount-DiskImage -ImagePath $IsoPath -ErrorAction SilentlyContinue | Out-Null } catch { }
+        try { Dismount-DiskImage -ImagePath $IsoPath -ErrorAction SilentlyContinue | Out-Null } catch { <# Dismounting an ISO that has no drive letter is a pre-clean, and the mount step below reports any real failure. #> $null = $_ }
         Start-Sleep -Milliseconds 500
     }
 
@@ -64,11 +64,11 @@ function Mount-LabIso {
         }
         if ($vol -and $vol.DriveLetter) { break }
         # No letter after 5 probes: dismount and try the whole sequence again.
-        try { Dismount-DiskImage -ImagePath $IsoPath -ErrorAction SilentlyContinue | Out-Null } catch { }
+        try { Dismount-DiskImage -ImagePath $IsoPath -ErrorAction SilentlyContinue | Out-Null } catch { <# Dismounting before a retry is a pre-clean, and the retry loop and the final throw report real failure. #> $null = $_ }
         Start-Sleep -Seconds 1
     }
     if (-not $vol -or -not $vol.DriveLetter) {
-        try { Dismount-DiskImage -ImagePath $IsoPath -ErrorAction SilentlyContinue | Out-Null } catch { }
+        try { Dismount-DiskImage -ImagePath $IsoPath -ErrorAction SilentlyContinue | Out-Null } catch { <# Dismounting an ISO with no drive letter is cleanup, and the next line throws the real error. #> $null = $_ }
         throw "Mount-LabIso: '$IsoPath' mounted but no drive letter assigned after 3 retries"
     }
 

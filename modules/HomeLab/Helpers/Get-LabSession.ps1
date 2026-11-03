@@ -59,10 +59,10 @@ function Get-LabSession {
         if ($existing -and $existing.State -eq 'Opened' -and $existing.Availability -eq 'Available') {
             return $existing
         }
-        try { Remove-PSSession -Session $existing -ErrorAction SilentlyContinue } catch { }
+        try { Remove-PSSession -Session $existing -ErrorAction SilentlyContinue } catch { <# Removing a stale cached PSSession is cleanup, and the cache entry is dropped anyway. #> $null = $_ }
         $script:LabSessionCache.Remove($key)
     } elseif ($Force -and $script:LabSessionCache.ContainsKey($key)) {
-        try { Remove-PSSession -Session $script:LabSessionCache[$key] -ErrorAction SilentlyContinue } catch { }
+        try { Remove-PSSession -Session $script:LabSessionCache[$key] -ErrorAction SilentlyContinue } catch { <# Removing the old cached PSSession before a forced new one is cleanup, and the cache entry is dropped anyway. #> $null = $_ }
         $script:LabSessionCache.Remove($key)
     }
 
@@ -88,7 +88,7 @@ function Clear-LabSessionCache {
     foreach ($entry in @($script:LabSessionCache.GetEnumerator())) {
         try {
             Remove-PSSession -Session $entry.Value -ErrorAction SilentlyContinue
-        } catch { }
+        } catch { <# Closing each cached PSSession is cleanup, and the cache is cleared afterwards. #> $null = $_ }
     }
     $script:LabSessionCache.Clear()
 }

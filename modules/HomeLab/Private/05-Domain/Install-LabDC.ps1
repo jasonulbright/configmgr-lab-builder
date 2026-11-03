@@ -138,7 +138,7 @@ function Install-LabDC {
                     if ($current.NetBIOSName -eq $NetBIOSName) {
                         return [pscustomobject]@{ Status = 'AlreadyPromoted'; DomainMode = $current.DomainMode }
                     }
-                } catch { }
+                } catch { <# The idempotency probe for an existing domain treats an error as not promoted, and the promotion continues. #> $null = $_ }
 
                 $feat = Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -ErrorAction Stop
                 if (-not $feat.Success) {

@@ -120,7 +120,7 @@ function Install-LabVcRedist {
             $pfr = $false
             try {
                 $pfr = [bool](Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name 'PendingFileRenameOperations' -ErrorAction Stop)
-            } catch { }
+            } catch { <# A missing PendingFileRenameOperations value means no pending rename, so the flag stays false. #> $null = $_ }
             [pscustomobject]@{ CBS = $cbs; WU = $wu; PFR = $pfr; Any = ($cbs -or $wu -or $pfr) }
         }
         if ($pending.Any) {

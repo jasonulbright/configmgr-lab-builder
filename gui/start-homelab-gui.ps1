@@ -1419,7 +1419,7 @@ function Register-DeployStreamHandlers {
                     $infoState.Step = ('Phase {0}' -f $phase)
                 }
             }
-        } catch { }
+        } catch { <# Parsing an info stream record for the GUI phase display is cosmetic, and a bad record is skipped. #> $null = $_ }
     }.GetNewClosure())
 
     $verboseState = $State
@@ -1431,7 +1431,7 @@ function Register-DeployStreamHandlers {
             if (-not [string]::IsNullOrWhiteSpace($text)) {
                 [void]$verboseState.Lines.Add(('{0:HH:mm:ss}  [VERB ] {1}' -f (Get-Date), $text.Trim()))
             }
-        } catch { }
+        } catch { <# Appending a verbose stream record to the GUI log is cosmetic, and a bad record is skipped. #> $null = $_ }
     }.GetNewClosure())
 
     $errorState = $State

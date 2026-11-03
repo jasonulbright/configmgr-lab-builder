@@ -284,9 +284,9 @@ function New-LabBaseImage {
         # (e.g. ISO dismount fails because nothing was mounted) shouldn't
         # mask the real error.
         if ($disk) {
-            try { Dismount-VHD -Path $tempVhdx -ErrorAction SilentlyContinue } catch { }
+            try { Dismount-VHD -Path $tempVhdx -ErrorAction SilentlyContinue } catch { <# Dismounting the temporary VHDX in the finally block is best-effort cleanup that must not mask the real error. #> $null = $_ }
         }
-        try { Dismount-DiskImage -ImagePath $IsoPath -ErrorAction SilentlyContinue } catch { }
+        try { Dismount-DiskImage -ImagePath $IsoPath -ErrorAction SilentlyContinue } catch { <# Dismounting the ISO in the finally block is best-effort cleanup, and the ISO may not be mounted. #> $null = $_ }
         if (Test-Path $tempUnattend) {
             Remove-Item $tempUnattend -Force -ErrorAction SilentlyContinue
         }
