@@ -69,6 +69,9 @@ Describe 'Test-HostPrereq HyperVFeature fast paths' {
             Mock Get-Service -ParameterFilter { $Name -eq 'vmms' } -MockWith {
                 throw 'no service'
             }
+            # A Windows Server runner has the Hyper-V Server feature. Hide the cmdlet so
+            # the test reaches the client-feature (DISM) path on any host.
+            Mock Get-Command -ParameterFilter { $Name -eq 'Get-WindowsFeature' } -MockWith { $null }
             Mock Get-WindowsOptionalFeature -MockWith {
                 [pscustomobject]@{ State = 'Disabled' }
             }
@@ -89,6 +92,9 @@ Describe 'Test-HostPrereq HyperVFeature fast paths' {
             Mock Get-Service -ParameterFilter { $Name -eq 'vmms' } -MockWith {
                 throw 'no service'
             }
+            # A Windows Server runner has the Hyper-V Server feature. Hide the cmdlet so
+            # the test reaches the client-feature (DISM) path on any host.
+            Mock Get-Command -ParameterFilter { $Name -eq 'Get-WindowsFeature' } -MockWith { $null }
             Mock Get-WindowsOptionalFeature -MockWith {
                 throw 'Class not registered'
             }

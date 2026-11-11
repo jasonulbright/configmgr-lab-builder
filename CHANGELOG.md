@@ -34,7 +34,8 @@
 ### Added
 
 - GitHub Actions workflow that runs the unit tests (Pester 5.7.1) under
-  Windows PowerShell 5.1 and PowerShell 7, and PSScriptAnalyzer.
+  PowerShell 7, and PSScriptAnalyzer.
+r
 ## [1.6.0] - 2026-09-09
 
 ### Added

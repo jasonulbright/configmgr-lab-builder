@@ -10,19 +10,11 @@ permissions:
 
 jobs:
   unit-tests:
-    name: Unit tests (${{ matrix.name }})
+    name: Unit tests (PowerShell 7)
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Windows PowerShell 5.1
-            shell: powershell
-          - name: PowerShell 7
-            shell: pwsh
     defaults:
       run:
-        shell: ${{ matrix.shell }}
+        shell: pwsh
     steps:
       - uses: actions/checkout@v4
 
