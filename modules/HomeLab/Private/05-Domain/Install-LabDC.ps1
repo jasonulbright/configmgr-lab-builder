@@ -133,12 +133,27 @@ function Install-LabDC {
                 param($DomainName, $NetBIOSName, $DsrmPasswordPlain, $ForestMode, $DomainMode)
 
                 # Idempotency: if the box thinks it's a DC for this domain, no-op.
-                try {
-                    $current = Get-ADDomain -Identity $DomainName -ErrorAction Stop
-                    if ($current.NetBIOSName -eq $NetBIOSName) {
-                        return [pscustomobject]@{ Status = 'AlreadyPromoted'; DomainMode = $current.DomainMode }
+                # "No domain yet" and "could not probe" are different answers:
+                #   - no domain yet: the AD module is absent, or the error says no
+                #     directory service answered (ADServerDownException, ADWS not
+                #     running, identity not found). The promotion continues.
+                #   - could not probe: any other error. The script returns
+                #     ProbeFailed and the caller stops before the promotion.
+                $current = $null
+                if (Get-Command -Name Get-ADDomain -ErrorAction SilentlyContinue) {
+                    try {
+                        $current = Get-ADDomain -Identity $DomainName -ErrorAction Stop
+                    } catch {
+                        $isNoDomain = ($_.Exception.GetType().Name -match 'ADServerDownException|ADIdentityNotFoundException') -or
+                            ($_.Exception.Message -match 'Unable to find a default server|Active Directory Web Services|Cannot find an object with identity')
+                        if (-not $isNoDomain) {
+                            return [pscustomobject]@{ Status = 'ProbeFailed'; Error = $_.Exception.Message }
+                        }
                     }
-                } catch { <# The idempotency probe for an existing domain treats an error as not promoted, and the promotion continues. #> $null = $_ }
+                }
+                if ($current -and $current.NetBIOSName -eq $NetBIOSName) {
+                    return [pscustomobject]@{ Status = 'AlreadyPromoted'; DomainMode = $current.DomainMode }
+                }
 
                 $feat = Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -ErrorAction Stop
                 if (-not $feat.Success) {
@@ -173,6 +188,10 @@ function Install-LabDC {
         } else {
             throw
         }
+    }
+
+    if ($result -and $result.Status -eq 'ProbeFailed') {
+        throw "Install-LabDC: could not check for an existing domain $DomainName on ${ComputerName}: $($result.Error). The promotion was not started."
     }
 
     if ($result -and $result.Status -eq 'AlreadyPromoted') {

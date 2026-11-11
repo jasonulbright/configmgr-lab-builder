@@ -60,7 +60,8 @@
       0  clean (no dirty findings; Hyper-V checks ran)
       1  dirty (at least one finding)
       3  incomplete (filesystem clean or dirty, but Hyper-V could not be
-         enumerated -- typically not elevated. NEVER certify clean on 3.)
+         enumerated -- typically not elevated -- or an image probe failed.
+         NEVER certify clean on 3.)
 
 .PARAMETER LabImagePath
     Base-image + VM VHDX cache folder. Default C:\LabImages.
@@ -116,6 +117,7 @@ if (-not $RepoRoot) {
 
 $findings = [System.Collections.Generic.List[pscustomobject]]::new()
 $notes    = [System.Collections.Generic.List[pscustomobject]]::new()
+$probeFailures = [System.Collections.Generic.List[pscustomobject]]::new()
 
 function Add-Finding {
     param([string]$Class, [string]$Item, [string]$Detail)
@@ -124,6 +126,12 @@ function Add-Finding {
 function Add-Note {
     param([string]$Class, [string]$Item, [string]$Detail)
     $notes.Add([pscustomobject]@{ Class = $Class; Item = $Item; Detail = $Detail })
+}
+# A probe that could not run is not a clean result. It makes the audit
+# incomplete (exit 3), the same as a Hyper-V enumeration failure.
+function Add-ProbeFailure {
+    param([string]$Class, [string]$Item, [string]$Detail)
+    $probeFailures.Add([pscustomobject]@{ Class = $Class; Item = $Item; Detail = $Detail })
 }
 
 # ------------------------------------------------- harvest lab identity
@@ -304,7 +312,9 @@ if (Test-Path $isoDir) {
             if ($img.Attached) {
                 Add-Finding -Class 'MountedIso' -Item $iso.Name -Detail 'ISO is currently attached on the host'
             }
-        } catch { }
+        } catch {
+            Add-ProbeFailure -Class 'MountedIso' -Item $iso.Name -Detail "Get-DiskImage failed: $($_.Exception.Message)"
+        }
     }
 }
 
@@ -316,7 +326,9 @@ if (Test-Path -LiteralPath $LabImagePath) {
             if ($img.Attached) {
                 Add-Finding -Class 'MountedVhd' -Item $vhdx.Name -Detail 'VHDX is currently attached on the host'
             }
-        } catch { }
+        } catch {
+            Add-ProbeFailure -Class 'MountedVhd' -Item $vhdx.Name -Detail "Get-DiskImage failed: $($_.Exception.Message)"
+        }
     }
 }
 
@@ -368,11 +380,15 @@ if (Test-Path $LabSourcesRoot) {
 
 # --------------------------------------------------------------- output
 
+$auditComplete = $hyperVComplete -and ($probeFailures.Count -eq 0)
+
 if ($AsJson) {
     [pscustomobject]@{
         Timestamp       = (Get-Date).ToString('o')
         HyperVComplete  = $hyperVComplete
+        AuditComplete   = $auditComplete
         Findings        = $findings
+        ProbeFailures   = $probeFailures
         Notes           = $notes
     } | ConvertTo-Json -Depth 4
 } else {
@@ -395,22 +411,33 @@ if ($AsJson) {
         $notes | Format-Table Class, Item, Detail -AutoSize -Wrap | Out-Host
     }
 
+    if ($probeFailures.Count -gt 0) {
+        Write-Host "PROBE FAILED -- $($probeFailures.Count) image probe(s) could not run:" -ForegroundColor Yellow
+        $probeFailures | Sort-Object Class, Item | Format-Table Class, Item, Detail -AutoSize -Wrap | Out-Host
+    }
+
     if (-not $hyperVComplete) {
         Write-Host 'INCOMPLETE: Hyper-V objects could not be enumerated (run elevated). Do NOT treat this host as verified-clean.' -ForegroundColor Yellow
-    } elseif ($findings.Count -eq 0) {
+    }
+    if ($probeFailures.Count -gt 0) {
+        Write-Host 'INCOMPLETE: an image probe failed, so a mounted image could be hidden. Do NOT treat this host as verified-clean.' -ForegroundColor Yellow
+    }
+    # When the audit is incomplete, the INCOMPLETE lines above are the verdict.
+    # No clean or dirty verdict follows.
+    if ($auditComplete -and $findings.Count -eq 0) {
         Write-Host 'VERDICT: host is provably clean of lab artifacts.' -ForegroundColor Green
-    } elseif (-not ($findings | Where-Object { $_.Class -ne 'BaseImage' })) {
+    } elseif ($auditComplete -and -not ($findings | Where-Object { $_.Class -ne 'BaseImage' })) {
         # Only cached base images remain. Remove-HomeLab -KeepBaseImages
         # preserves these by design, so repeating that command can never
         # clear the verdict; name the switch that actually applies instead.
         Write-Host 'VERDICT: host is DIRTY -- cached base images only.' -ForegroundColor Yellow
         Write-Host '  Kept the cache on purpose? Re-run this audit with -AllowBaseImageCache.' -ForegroundColor Yellow
         Write-Host '  Need a from-scratch host? Run Remove-HomeLab -RemoveBaseImageCache, then re-audit.' -ForegroundColor Yellow
-    } else {
+    } elseif ($auditComplete) {
         Write-Host 'VERDICT: host is DIRTY. Run Remove-HomeLab (with -RemoveBaseImageCache for a from-scratch run), then re-audit.' -ForegroundColor Red
     }
 }
 
-if (-not $hyperVComplete) { exit 3 }
+if (-not $auditComplete) { exit 3 }
 if ($findings.Count -gt 0) { exit 1 }
 exit 0

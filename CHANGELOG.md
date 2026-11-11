@@ -1,5 +1,40 @@
-# Changelog
+﻿# Changelog
 
+## [1.6.1] - 2026-11-10
+
+### Fixed
+
+- **Probe failures no longer read as an empty answer.** Seven places hid an
+  error behind an empty `catch` or read any probe failure as "not found".
+  Each now reports the real cause. The success path is unchanged.
+
+  - **Site install no longer reruns setup after a failed probe.**
+    `Install-CMSite` treated every CIM error as "site not installed" and ran
+    setup again. Only a missing namespace or class (InvalidNamespace,
+    InvalidClass, NotFound) means "not installed" now. Any other error
+    (access denied, WinRM, RPC) stops the install and names the cause.
+  - **Domain promotion no longer starts after a failed probe.**
+    `Install-LabDC` treated every `Get-ADDomain` error as "no domain yet".
+    A missing AD module, or an error that says no directory service
+    answered, still means "no domain yet". Any other error stops before the
+    promotion and names the cause.
+  - **Host check names the cause of a failed probe.** The free-disk and
+    free-memory probes in `Test-HostPrereq` reported 0 GB or 0 bytes when
+    the CIM query failed, so the check failed with no cause. The check
+    result now carries the real error.
+  - **The artifact audit no longer certifies a host it could not check.**
+    `tools\Audit-HomeLabArtifacts.ps1` ignored a failed `Get-DiskImage`
+    probe, which could hide a mounted ISO or VHDX. The failure is now
+    reported (`ProbeFailures` in the JSON output) and the audit exits 3
+    (incomplete), never 0.
+  - **The GUI shows a failure of its own error-stream handler.** The deploy
+    error-stream handler dropped its own faults. It now sets the deploy error
+    message and adds a log line.
+
+### Added
+
+- GitHub Actions workflow that runs the unit tests (Pester 5.7.1) under
+  Windows PowerShell 5.1 and PowerShell 7, and PSScriptAnalyzer.
 ## [1.6.0] - 2026-09-09
 
 ### Added

@@ -286,3 +286,38 @@ Describe 'Add-LabSchemaContainer parameter validation' {
         $script:capturedExe | Should -Be 'C:\Install\CM\SMSSETUP\BIN\X64\extadsch.exe'
     }
 }
+
+Describe 'Install-LabDC separates "no domain yet" from "could not probe"' {
+    BeforeAll {
+        # Stubs so Get-Command finds the commands and Pester can mock them on a
+        # host that has no AD module or Server feature cmdlets.
+        function Get-ADDomain { param($Identity, $ErrorAction) }
+        function Install-WindowsFeature { param($Name, [switch]$IncludeManagementTools, $ErrorAction) }
+    }
+
+    It 'stops with the probe error and starts no promotion when Get-ADDomain fails for another reason' {
+        Mock Invoke-LabCommand -MockWith { & $ScriptBlock @ArgumentList }
+        Mock Get-ADDomain { throw 'Access is denied (unit-test probe failure)' }
+        Mock Install-WindowsFeature { throw 'unit test promotion reached' }
+
+        { Install-LabDC -ComputerName DC01 -LocalCredential (New-FakeCred) `
+                        -DomainName 'contoso.com' `
+                        -SafeModeAdministratorPassword (ConvertTo-SecureString 'p' -AsPlainText -Force) } |
+            Should -Throw '*could not check*Access is denied*'
+
+        Should -Invoke Install-WindowsFeature -Times 0 -Exactly
+    }
+
+    It 'continues to the promotion when no directory service answers (no domain yet)' {
+        Mock Invoke-LabCommand -MockWith { & $ScriptBlock @ArgumentList }
+        Mock Get-ADDomain { throw 'Unable to find a default server with Active Directory Web Services running.' }
+        Mock Install-WindowsFeature { throw 'unit test promotion reached' }
+
+        { Install-LabDC -ComputerName DC01 -LocalCredential (New-FakeCred) `
+                        -DomainName 'contoso.com' `
+                        -SafeModeAdministratorPassword (ConvertTo-SecureString 'p' -AsPlainText -Force) } |
+            Should -Throw '*unit test promotion reached*'
+
+        Should -Invoke Install-WindowsFeature -Times 1 -Exactly
+    }
+}

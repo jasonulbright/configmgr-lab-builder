@@ -190,3 +190,48 @@ Describe 'Test-HostPrereq VirtExtensions fast path' {
         }
     }
 }
+
+Describe 'Test-HostPrereq failed probes report the real error' {
+
+    It 'FreeDisk fails with the probe error instead of reporting 0GB free' {
+        InModuleScope HomeLab {
+            Mock Write-LabLog -MockWith { }
+            Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_LogicalDisk' } -MockWith {
+                throw 'disk probe unit-test failure'
+            }
+
+            $r = Test-HostPrereq -LabImagePath 'C:\LabImages'
+            $r.Checks['FreeDisk'].Pass    | Should -BeFalse
+            $r.Checks['FreeDisk'].Message | Should -Match 'probe failed'
+            $r.Checks['FreeDisk'].Message | Should -Match 'disk probe unit-test failure'
+            $r.Checks['FreeDisk'].Message | Should -Not -Match '0GB free'
+        }
+    }
+
+    It 'FreeDisk still reports the free space when the probe works' {
+        InModuleScope HomeLab {
+            Mock Write-LabLog -MockWith { }
+            Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_LogicalDisk' } -MockWith {
+                [pscustomobject]@{ FreeSpace = [long]500GB }
+            }
+
+            $r = Test-HostPrereq -LabImagePath 'C:\LabImages' -MinFreeGB 100
+            $r.Checks['FreeDisk'].Pass    | Should -BeTrue
+            $r.Checks['FreeDisk'].Message | Should -Match '500GB free on C:'
+        }
+    }
+
+    It 'MemoryBudget fails with the probe error instead of reporting 0 bytes free' {
+        InModuleScope HomeLab {
+            Mock Write-LabLog -MockWith { }
+            Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_OperatingSystem' } -MockWith {
+                throw 'memory probe unit-test failure'
+            }
+
+            $r = Test-HostPrereq -LabImagePath 'C:\LabImages' -VMStartupMemoryBytes 64MB
+            $r.Checks['MemoryBudget'].Pass    | Should -BeFalse
+            $r.Checks['MemoryBudget'].Message | Should -Match 'probe failed'
+            $r.Checks['MemoryBudget'].Message | Should -Match 'memory probe unit-test failure'
+        }
+    }
+}
