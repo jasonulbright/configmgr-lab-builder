@@ -378,3 +378,76 @@ Describe 'Import-CMModule parameter validation' {
             Should -Throw '*length*'
     }
 }
+
+Describe 'Install-CMSite separates "not installed" from "could not probe"' {
+
+    It 'stops with the probe error and starts no setup when the CIM probe fails' {
+        Mock Invoke-LabCommand -MockWith { & $ScriptBlock @ArgumentList }
+        Mock Get-CimInstance { throw 'Access is denied (unit-test probe failure)' }
+        Mock Copy-LabFile { }
+
+        { Install-CMSite -ComputerName CM01 -DomainCredential (New-FakeCred) `
+            -SiteCode MCM -SiteName 'x' -CMServerFqdn 'CM01.contoso.com' } |
+            Should -Throw '*could not probe*Access is denied*'
+
+        # Only the probe ran. No setup step followed it.
+        Should -Invoke Invoke-LabCommand -Times 1 -Exactly
+        Should -Invoke Copy-LabFile -Times 0 -Exactly
+    }
+
+    It 'stops when the error text only contains "not found" and has no native code' {
+        Mock Invoke-LabCommand -MockWith { & $ScriptBlock @ArgumentList }
+        Mock Get-CimInstance { throw 'Element not found.' }
+        Mock Copy-LabFile { }
+
+        { Install-CMSite -ComputerName CM01 -DomainCredential (New-FakeCred) `
+            -SiteCode MCM -SiteName 'x' -CMServerFqdn 'CM01.contoso.com' } |
+            Should -Throw '*could not probe*Element not found*'
+        Should -Invoke Copy-LabFile -Times 0 -Exactly
+    }
+
+    It 'treats a CimException-style InvalidNamespace native code as not installed' {
+        Mock Invoke-LabCommand -MockWith {
+            $text = if ($ScriptBlock) { $ScriptBlock.ToString() } else { '' }
+            if ($text -match 'SMS_Site')               { return (& $ScriptBlock @ArgumentList) }
+            if ($text -match 'setup\.exe')             { return $true }
+            if ($text -match 'Register-ScheduledTask') { return [pscustomobject]@{ ExitCode = 0 } }
+            return $null
+        }
+        Mock Get-CimInstance {
+            $ex = [System.Exception]::new('Namespace missing (unit test)')
+            $ex | Add-Member -NotePropertyName NativeErrorCode -NotePropertyValue 'InvalidNamespace'
+            throw $ex
+        }
+        Mock Copy-LabFile   { }
+        Mock Test-CMSetupLog { [pscustomobject]@{ Status = 'Success'; MatchLine = ''; ErrorContext = '' } }
+        Mock Wait-CMReady   { $true }
+
+        $r = Install-CMSite -ComputerName CM01 -DomainCredential (New-FakeCred) `
+            -SiteCode MCM -SiteName 'x' -CMServerFqdn 'CM01.contoso.com'
+        $r.Status | Should -Be 'Installed'
+    }
+
+    It 'treats a missing namespace as not installed and runs setup' {
+        $script:sentMissing = [System.Collections.Generic.List[string]]::new()
+        Mock Invoke-LabCommand -MockWith {
+            $text = if ($ScriptBlock) { $ScriptBlock.ToString() } else { '' }
+            $script:sentMissing.Add($text)
+            if ($text -match 'SMS_Site')               { return (& $ScriptBlock @ArgumentList) }
+            if ($text -match 'setup\.exe')             { return $true }
+            if ($text -match 'Register-ScheduledTask') { return [pscustomobject]@{ ExitCode = 0 } }
+            return $null
+        }
+        Mock Get-CimInstance { throw 'Invalid namespace ' }
+        Mock Copy-LabFile   { }
+        Mock Test-CMSetupLog { [pscustomobject]@{ Status = 'Success'; MatchLine = ''; ErrorContext = '' } }
+        Mock Wait-CMReady   { $true }
+
+        $r = Install-CMSite -ComputerName CM01 -DomainCredential (New-FakeCred) `
+            -SiteCode MCM -SiteName 'x' -CMServerFqdn 'CM01.contoso.com'
+
+        $r.Status | Should -Be 'Installed'
+        @($script:sentMissing | Where-Object { $_ -match 'Register-ScheduledTask' }).Count |
+            Should -BeGreaterThan 0
+    }
+}

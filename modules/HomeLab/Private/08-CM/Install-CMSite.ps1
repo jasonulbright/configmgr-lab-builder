@@ -155,8 +155,13 @@ function Install-CMSite {
     }
 
     # 1. Idempotency. Probing the WMI namespace from the VM is robust
-    # even when SMS_EXECUTIVE is starting up: a missing namespace
-    # throws ObjectNotFound and we treat that as "not installed".
+    # even when SMS_EXECUTIVE is starting up. Two answers are different:
+    #   - "not installed": the namespace or class does not exist
+    #     (InvalidNamespace, InvalidClass, NotFound), or the class has no
+    #     row for this site. Setup runs.
+    #   - "could not probe": any other failure (access denied, WinRM,
+    #     RPC). The probe returns ProbeError and this function stops.
+    #     Running setup on a site that is already installed is not safe.
     Write-LabLog "[$ComputerName] Probing for existing CM site $SiteCode" -Status RUN
     $existing = Invoke-LabCommand -ComputerName $ComputerName -Credential $DomainCredential `
         -ScriptBlock {
@@ -165,9 +170,25 @@ function Install-CMSite {
                 $cm = Get-CimInstance -Namespace "ROOT\SMS\site_$Site" -ClassName SMS_Site -ErrorAction Stop |
                     Where-Object { $_.SiteCode -eq $Site } | Select-Object -First 1
                 if ($cm) { return [pscustomobject]@{ Installed = $true; Version = $cm.Version } }
-            } catch { <# The probe for an existing CM site treats an error as not installed, as the code comment states. #> $null = $_ }
+            } catch {
+                $nativeError = [string]$_.Exception.NativeErrorCode
+                # A CimException carries a native error code. Without one, accept only the
+                # exact CIM "not found" texts, not any message that contains "not found".
+                $isNotFound = if ($nativeError) {
+                    $nativeError -in @('InvalidNamespace', 'InvalidClass', 'NotFound')
+                } else {
+                    $_.Exception.Message -match '^\s*(Invalid namespace|Invalid class|Not found)\s*$'
+                }
+                if (-not $isNotFound) {
+                    return [pscustomobject]@{ Installed = $false; ProbeError = $_.Exception.Message }
+                }
+            }
             return [pscustomobject]@{ Installed = $false }
         } -ArgumentList $SiteCode
+
+    if ($existing.ProbeError) {
+        throw "Install-CMSite: could not probe for CM site $SiteCode on ${ComputerName}: $($existing.ProbeError). Setup was not started."
+    }
 
     if ($existing.Installed) {
         Write-LabLog "[$ComputerName] CM site $SiteCode already installed (v$($existing.Version))" -Status SKIP

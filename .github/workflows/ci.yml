@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    name: Unit tests (PowerShell 7)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Pester 5.7.1
+        run: |
+          Install-Module -Name Pester -RequiredVersion 5.7.1 -Force -Scope CurrentUser -SkipPublisherCheck
+
+      - name: Run unit tests
+        run: |
+          Import-Module Pester -RequiredVersion 5.7.1 -Force
+          $config = New-PesterConfiguration
+          $config.Run.Path = 'Tests/Unit'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Normal'
+          Invoke-Pester -Configuration $config
+
+  analyzer:
+    name: PSScriptAnalyzer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run PSScriptAnalyzer (empty catch blocks and parse errors)
+        shell: pwsh
+        run: |
+          Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+          $findings = foreach ($dir in 'gui', 'modules', 'tools') {
+            Invoke-ScriptAnalyzer -Path $dir -Recurse -IncludeRule PSAvoidUsingEmptyCatchBlock
+          }
+          $findings | Format-Table RuleName, ScriptName, Line, Message -AutoSize -Wrap | Out-String -Width 200 | Write-Host
+          if (@($findings).Count -gt 0) { throw "PSScriptAnalyzer reported $(@($findings).Count) finding(s)." }

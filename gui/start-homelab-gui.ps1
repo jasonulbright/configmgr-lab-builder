@@ -1443,7 +1443,14 @@ function Register-DeployStreamHandlers {
             if ([string]::IsNullOrWhiteSpace($text)) { $text = [string]$record }
             [void]$errorState.Lines.Add(('{0:HH:mm:ss}  [ERROR] {1}' -f (Get-Date), $text.Trim()))
             if (-not $errorState.ErrorMsg) { $errorState.ErrorMsg = $text.Trim() }
-        } catch { }
+        } catch {
+            # A bad error record must not hide the failure it describes. Show the
+            # handler fault as the deploy error when no other error is set, and add
+            # it to the log when the log list works.
+            $handlerFault = 'Error stream handler failed: {0}' -f $_.Exception.Message
+            if (-not $errorState.ErrorMsg) { $errorState.ErrorMsg = $handlerFault }
+            try { [void]$errorState.Lines.Add(('{0:HH:mm:ss}  [ERROR] {1}' -f (Get-Date), $handlerFault)) } catch { <# The log list is the part that failed, and ErrorMsg above already carries the fault. #> $null = $_ }
+        }
     }.GetNewClosure())
 }
 
