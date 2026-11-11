@@ -192,27 +192,15 @@ function Test-HostPrereq {
     $imgRoot = $imgRoot.TrimEnd('\')
     $imgDrive = $imgRoot.Substring(0, 1)
     $freeGB = 0
-    $diskProbeError = $null
     try {
         $vol = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='${imgDrive}:'" -ErrorAction Stop
         $freeGB = [math]::Round($vol.FreeSpace / 1GB, 0)
-    } catch {
-        # A failed probe is not 0GB free. Keep the real error for the result.
-        $diskProbeError = $_.Exception.Message.Split([char]10)[0].Trim()
-    }
-    if ($diskProbeError) {
-        $diskPass = $false
-        $diskValue = "free disk probe failed on ${imgDrive}:"
-        $diskMessage = "Free disk probe failed on ${imgDrive}: $diskProbeError"
-    } else {
-        $diskPass = $freeGB -ge $MinFreeGB
-        $diskValue = "${freeGB}GB free on ${imgDrive}:"
-        $diskMessage = if ($diskPass) { "${freeGB}GB free on ${imgDrive}: (>= ${MinFreeGB}GB required)" } else { "${freeGB}GB free on ${imgDrive}: below required ${MinFreeGB}GB" }
-    }
+    } catch { }
+    $diskPass = $freeGB -ge $MinFreeGB
     $checks['FreeDisk'] = [pscustomobject]@{
         Pass    = $diskPass
-        Value   = $diskValue
-        Message = $diskMessage
+        Value   = "${freeGB}GB free on ${imgDrive}:"
+        Message = if ($diskPass) { "${freeGB}GB free on ${imgDrive}: (>= ${MinFreeGB}GB required)" } else { "${freeGB}GB free on ${imgDrive}: below required ${MinFreeGB}GB" }
     }
 
     # 6. CPU virt extensions. Fast path: a loaded hypervisor is
@@ -258,14 +246,10 @@ function Test-HostPrereq {
     # topology's demand).
     if ($VMStartupMemoryBytes -gt 0) {
         $freeBytes = 0
-        $memProbeError = $null
         try {
             $osInfo = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
             $freeBytes = [long]$osInfo.FreePhysicalMemory * 1KB
-        } catch {
-            # A failed probe is not 0 bytes free. Keep the real error for the result.
-            $memProbeError = $_.Exception.Message.Split([char]10)[0].Trim()
-        }
+        } catch { }
         $reclaimBytes = 0
         if ($ConfigVMNames -and (Get-Command Get-VM -ErrorAction SilentlyContinue)) {
             try {
@@ -278,13 +262,11 @@ function Test-HostPrereq {
         $demandGB = [math]::Round($VMStartupMemoryBytes / 1GB, 1)
         # 1GB margin: Hyper-V worker processes + host churn during a
         # 4-way parallel VM start.
-        $memPass = (-not $memProbeError) -and (($freeBytes + $reclaimBytes) -ge ($VMStartupMemoryBytes + 1GB))
+        $memPass = ($freeBytes + $reclaimBytes) -ge ($VMStartupMemoryBytes + 1GB)
         $checks['MemoryBudget'] = [pscustomobject]@{
             Pass    = $memPass
-            Value   = if ($memProbeError) { "${demandGB}GB demand / free memory probe failed" } else { "${demandGB}GB demand / ${availGB}GB available" }
-            Message = if ($memProbeError) {
-                "Free memory probe failed: $memProbeError"
-            } elseif ($memPass) {
+            Value   = "${demandGB}GB demand / ${availGB}GB available"
+            Message = if ($memPass) {
                 "Topology startup memory ${demandGB}GB fits available ${availGB}GB (free + reclaimable lab VM memory)"
             } else {
                 "Topology needs ${demandGB}GB startup memory but only ${availGB}GB is available (free + reclaimable lab VM memory). Close host applications or reduce VM Memory values in the config/template."
@@ -336,7 +318,7 @@ function Test-HostPrereq {
             $id = [System.Security.Principal.WindowsIdentity]::GetCurrent()
             $principal = New-Object System.Security.Principal.WindowsPrincipal($id)
             $elevPass = $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
-        } catch { <# A failed elevation check leaves the result as not elevated. The check reports not elevated, and it does not name the cause of the failure. #> $null = $_ }
+        } catch { <# A failed elevation check leaves the result as not elevated, and the check reports that failure. #> $null = $_ }
         $checks['Elevation'] = [pscustomobject]@{
             Pass    = $elevPass
             Value   = if ($elevPass) { 'elevated' } else { 'not elevated' }

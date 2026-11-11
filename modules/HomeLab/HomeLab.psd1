@@ -1,8 +1,6 @@
-﻿@{
+@{
     RootModule        = 'HomeLab.psm1'
-    ModuleVersion     = '1.6.1'
-    # 1.6.1: report the cause of a failed probe instead of reading it as an empty
-    #        answer (Install-CMSite, Install-LabDC, Test-HostPrereq, audit, GUI).
+    ModuleVersion     = '1.6.0'
     # 1.6.0: provision the SQL (E:) and data (F:) volumes SQLDisk/DataDisk
     #        always described; grant the lab admin on the content share.
     # 1.5.1: automate Fallback Status Point, Service Connection Point, and
@@ -41,7 +39,7 @@
         PSData = @{
             Tags         = @('ConfigMgr','ConfigurationManager','SCCM','HyperV','Lab','HomeLab')
             ProjectUri   = 'https://github.com/jasonulbright/configmgr-lab-builder'
-            ReleaseNotes = 'v1.6.1 reports the cause of a failed probe instead of reading it as an empty answer: Install-CMSite no longer reruns setup, Install-LabDC no longer starts a promotion, and the host check and the artifact audit name the failure. See CHANGELOG.md. v1.6.0 provisions the dedicated SQL and content volumes that SQLDisk and DataDisk always described but never created, and fixes a content share that a non-elevated console session could not open. See CHANGELOG.md.'
+            ReleaseNotes = 'v1.6.0 provisions the dedicated SQL and content volumes that SQLDisk and DataDisk always described but never created, and fixes a content share that a non-elevated console session could not open. See CHANGELOG.md.'
         }
     }
 }
