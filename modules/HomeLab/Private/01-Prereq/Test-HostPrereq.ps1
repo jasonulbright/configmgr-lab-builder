@@ -1,4 +1,4 @@
-function Test-HostPrereq {
+﻿function Test-HostPrereq {
     <#
     .SYNOPSIS
         Verify the Hyper-V host meets HomeLab prerequisites.
@@ -195,6 +195,7 @@ function Test-HostPrereq {
     $diskProbeError = $null
     try {
         $vol = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='${imgDrive}:'" -ErrorAction Stop
+        if (-not $vol) { throw "volume ${imgDrive}: not found" }
         $freeGB = [math]::Round($vol.FreeSpace / 1GB, 0)
     } catch {
         # A failed probe is not 0GB free. Keep the real error for the result.

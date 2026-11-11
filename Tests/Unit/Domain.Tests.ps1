@@ -1,4 +1,4 @@
-#requires -Module Pester
+﻿#requires -Module Pester
 <#
 .SYNOPSIS
     Pester tests for the S3 domain helpers (Install-LabDC,
@@ -306,6 +306,20 @@ Describe 'Install-LabDC separates "no domain yet" from "could not probe"' {
             Should -Throw '*could not check*Access is denied*'
 
         Should -Invoke Install-WindowsFeature -Times 0 -Exactly
+    }
+
+    It 'continues to the promotion when the AD module is absent (fresh server)' {
+        Mock Invoke-LabCommand -MockWith { & $ScriptBlock @ArgumentList }
+        Mock Get-Command -ParameterFilter { $Name -eq 'Get-ADDomain' } -MockWith { $null }
+        Mock Get-ADDomain { throw 'Get-ADDomain must not run when the module is absent' }
+        Mock Install-WindowsFeature { throw 'unit test promotion reached' }
+
+        { Install-LabDC -ComputerName DC01 -LocalCredential (New-FakeCred) `
+                        -DomainName 'contoso.com' `
+                        -SafeModeAdministratorPassword (ConvertTo-SecureString 'p' -AsPlainText -Force) } |
+            Should -Throw '*unit test promotion reached*'
+
+        Should -Invoke Get-ADDomain -Times 0 -Exactly
     }
 
     It 'continues to the promotion when no directory service answers (no domain yet)' {

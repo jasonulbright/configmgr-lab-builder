@@ -1,4 +1,4 @@
-#requires -Module Pester
+﻿#requires -Module Pester
 <#
 .SYNOPSIS
     Pester tests for Test-HostPrereq fast-path logic. Covers the
@@ -211,6 +211,17 @@ Describe 'Test-HostPrereq failed probes report the real error' {
             $r.Checks['FreeDisk'].Message | Should -Match 'probe failed'
             $r.Checks['FreeDisk'].Message | Should -Match 'disk probe unit-test failure'
             $r.Checks['FreeDisk'].Message | Should -Not -Match '0GB free'
+        }
+    }
+
+    It 'FreeDisk fails with a cause when the drive does not exist' {
+        InModuleScope HomeLab {
+            Mock Write-LabLog -MockWith { }
+            Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_LogicalDisk' } -MockWith { $null }
+
+            $r = Test-HostPrereq -LabImagePath 'C:\LabImages'
+            $r.Checks['FreeDisk'].Pass    | Should -BeFalse
+            $r.Checks['FreeDisk'].Message | Should -Match 'not found'
         }
     }
 

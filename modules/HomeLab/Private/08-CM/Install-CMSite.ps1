@@ -1,4 +1,4 @@
-function Install-CMSite {
+﻿function Install-CMSite {
     <#
     .SYNOPSIS
         Run unattended Configuration Manager 2509 primary-site setup on
@@ -172,8 +172,14 @@ function Install-CMSite {
                 if ($cm) { return [pscustomobject]@{ Installed = $true; Version = $cm.Version } }
             } catch {
                 $nativeError = [string]$_.Exception.NativeErrorCode
-                if ($nativeError -notin @('InvalidNamespace', 'InvalidClass', 'NotFound') -and
-                    $_.Exception.Message -notmatch 'Invalid namespace|Invalid class|Not found') {
+                # A CimException carries a native error code. Without one, accept only the
+                # exact CIM "not found" texts, not any message that contains "not found".
+                $isNotFound = if ($nativeError) {
+                    $nativeError -in @('InvalidNamespace', 'InvalidClass', 'NotFound')
+                } else {
+                    $_.Exception.Message -match '^\s*(Invalid namespace|Invalid class|Not found)\s*$'
+                }
+                if (-not $isNotFound) {
                     return [pscustomobject]@{ Installed = $false; ProbeError = $_.Exception.Message }
                 }
             }
