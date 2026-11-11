@@ -167,7 +167,7 @@ function Remove-HomeLab {
                     $cur = Get-VHD -Path $cur.ParentPath -ErrorAction SilentlyContinue
                     if (-not $cur) { break }
                 }
-            } catch { }
+            } catch { <# Reading the VHD parent chain is best-effort discovery of extra files, and the listed disks are still removed. #> $null = $_ }
         }
 
         # Snapshots get nuked when Remove-VM runs; their .avhdx files
@@ -227,7 +227,7 @@ function Remove-HomeLab {
                     Write-LabLog "Dismounting attached image before delete: $p" -Status WARN
                     Dismount-VHD -Path $p -ErrorAction SilentlyContinue
                 }
-            } catch { }
+            } catch { <# Dismounting an attached image before delete is a pre-clean, and the later delete check records files still present. #> $null = $_ }
             Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue
             if (Test-Path -LiteralPath $p) { $stillPending.Add($p) }
         }
@@ -279,7 +279,7 @@ function Remove-HomeLab {
                     Write-LabLog "Dismounting attached image before delete: $($item.FullName)" -Status WARN
                     Dismount-VHD -Path $item.FullName -ErrorAction SilentlyContinue
                 }
-            } catch { }
+            } catch { <# Dismounting an attached image before delete is a pre-clean, and the delete step follows. #> $null = $_ }
             Remove-Item -LiteralPath $item.FullName -Force -ErrorAction SilentlyContinue
         }
         # Remove the now-empty folder tree, but never a folder that
@@ -287,7 +287,7 @@ function Remove-HomeLab {
         $remaining = @(Get-ChildItem -LiteralPath $folder -Recurse -Force -ErrorAction SilentlyContinue |
             Where-Object { -not $_.PSIsContainer })
         if ($remaining.Count -eq 0) {
-            try { Remove-Item -LiteralPath $folder -Recurse -Force -ErrorAction Stop } catch { }
+            try { Remove-Item -LiteralPath $folder -Recurse -Force -ErrorAction Stop } catch { <# Removing the empty lab folder is cleanup, and a leftover empty folder does not change the result. #> $null = $_ }
         }
     }
 
@@ -315,7 +315,7 @@ function Remove-HomeLab {
                     Dismount-DiskImage -ImagePath $iso.FullName -ErrorAction SilentlyContinue | Out-Null
                     Write-LabLog "Dismounted leaked ISO mount: $($iso.Name)" -Status OK
                 }
-            } catch { }
+            } catch { <# Dismounting a leaked ISO is best-effort cleanup, and an ISO that is not an image needs no action. #> $null = $_ }
         }
     }
 

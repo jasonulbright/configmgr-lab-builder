@@ -116,7 +116,7 @@ function Test-HostPrereq {
             $hvPass = $true
             $hvDetail = 'Hyper-V running (HypervisorPresent=True)'
         }
-    } catch { }
+    } catch { <# The CIM hypervisor probe is the first of several checks, and the next check runs when it fails. #> $null = $_ }
 
     if (-not $hvPass) {
         try {
@@ -125,7 +125,7 @@ function Test-HostPrereq {
                 $hvPass = $true
                 $hvDetail = "Hyper-V Virtual Machine Management service is $($vmms.Status)"
             }
-        } catch { }
+        } catch { <# The vmms service probe is one of several checks, and the later checks still run when it fails. #> $null = $_ }
     }
 
     if (-not $hvPass -and (Get-Command Get-WindowsFeature -ErrorAction SilentlyContinue)) {
@@ -135,7 +135,7 @@ function Test-HostPrereq {
                 $hvPass = $true
                 $hvDetail = 'Hyper-V (Server feature) Installed'
             }
-        } catch { }
+        } catch { <# The Server feature probe is one of several checks, and a failure leaves the check as not passed. #> $null = $_ }
     }
 
     if (-not $hvPass) {
@@ -167,7 +167,7 @@ function Test-HostPrereq {
             $modPass = $true
             $modDetail = "Hyper-V module v$($hvMod.Version)"
         }
-    } catch { }
+    } catch { <# The Hyper-V module lookup failure leaves the check as not available, and the report shows that result. #> $null = $_ }
     $checks['HyperVModule'] = [pscustomobject]@{
         Pass    = $modPass
         Value   = $modDetail
@@ -222,7 +222,7 @@ function Test-HostPrereq {
             $virtPass = $true
             $virtDetail = "$cpuName (hypervisor running, firmware virt enabled)"
         }
-    } catch { }
+    } catch { <# The CIM virtualization probe is one of several checks, and the next check runs when it fails. #> $null = $_ }
 
     if (-not $virtPass) {
         if ($cpu) {
@@ -256,7 +256,7 @@ function Test-HostPrereq {
                 $reclaimBytes = (@(Get-VM -Name $ConfigVMNames -ErrorAction SilentlyContinue) |
                     Measure-Object MemoryAssigned -Sum).Sum
                 if (-not $reclaimBytes) { $reclaimBytes = 0 }
-            } catch { }
+            } catch { <# The reclaimable VM memory lookup is optional, and zero is a safe lower bound for the budget. #> $null = $_ }
         }
         $availGB  = [math]::Round(($freeBytes + $reclaimBytes) / 1GB, 1)
         $demandGB = [math]::Round($VMStartupMemoryBytes / 1GB, 1)
@@ -318,7 +318,7 @@ function Test-HostPrereq {
             $id = [System.Security.Principal.WindowsIdentity]::GetCurrent()
             $principal = New-Object System.Security.Principal.WindowsPrincipal($id)
             $elevPass = $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
-        } catch { }
+        } catch { <# A failed elevation check leaves the result as not elevated, and the check reports that failure. #> $null = $_ }
         $checks['Elevation'] = [pscustomobject]@{
             Pass    = $elevPass
             Value   = if ($elevPass) { 'elevated' } else { 'not elevated' }

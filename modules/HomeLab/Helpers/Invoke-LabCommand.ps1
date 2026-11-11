@@ -124,7 +124,7 @@ function Invoke-LabCommand {
                 if ($item.PSObject.Properties[$prop]) {
                     $item.PSObject.Properties.Remove($prop)
                 }
-            } catch { }
+            } catch { <# Stripping remoting properties from a result object is cosmetic, and the object is returned anyway. #> $null = $_ }
         }
         $item
     }
