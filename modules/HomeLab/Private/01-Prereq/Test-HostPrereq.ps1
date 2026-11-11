@@ -1,4 +1,4 @@
-﻿function Test-HostPrereq {
+function Test-HostPrereq {
     <#
     .SYNOPSIS
         Verify the Hyper-V host meets HomeLab prerequisites.

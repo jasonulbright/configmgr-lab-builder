@@ -1,4 +1,4 @@
-﻿#requires -Module Pester
+#requires -Module Pester
 <#
 .SYNOPSIS
     Pester tests for the S3 domain helpers (Install-LabDC,

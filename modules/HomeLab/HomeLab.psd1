@@ -1,4 +1,4 @@
-﻿@{
+@{
     RootModule        = 'HomeLab.psm1'
     ModuleVersion     = '1.6.1'
     # 1.6.1: report the cause of a failed probe instead of reading it as an empty

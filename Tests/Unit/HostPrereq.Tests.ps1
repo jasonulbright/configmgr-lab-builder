@@ -1,4 +1,4 @@
-﻿#requires -Module Pester
+#requires -Module Pester
 <#
 .SYNOPSIS
     Pester tests for Test-HostPrereq fast-path logic. Covers the

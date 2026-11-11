@@ -1,4 +1,4 @@
-﻿function Install-CMSite {
+function Install-CMSite {
     <#
     .SYNOPSIS
         Run unattended Configuration Manager 2509 primary-site setup on

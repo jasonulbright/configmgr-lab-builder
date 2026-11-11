@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 ## [1.6.1] - 2026-11-10
 

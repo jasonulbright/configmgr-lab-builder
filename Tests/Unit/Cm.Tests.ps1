@@ -1,4 +1,4 @@
-﻿#requires -Module Pester
+#requires -Module Pester
 <#
 .SYNOPSIS
     Pester tests for S6 (CM 2509 site install). Covers the testable
