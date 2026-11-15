@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.8.0] - 2026-11-14
+
+### Added
+
+- **Phase `12-Validate` proves the lab is healthy out of the box.**
+  `Invoke-LabValidation` checks WinRM on every VM, the console on the site
+  server and the client VMs, that each client is a managed client (CcmExec
+  running, assigned to the site, `Client = 1` in the site), that each client
+  trusts the administration service certificate, that
+  `/AdminService/wmi/SMS_Site` answers from the client, and that a CMPivot
+  query for the client returns rows. The run fails when a check fails.
+- **`Install-CMConsole`** installs the console on client VMs from the site's
+  `ConsoleSetup` folder (phase `10-Tools`).
+- **`docs/rebuild-runbook.md`** records the rebuild steps, what the build
+  does without manual steps, what stays outside the builder on purpose, and
+  the measured time per phase.
 ## [1.7.0] - 2026-11-14
 
 ### Added
