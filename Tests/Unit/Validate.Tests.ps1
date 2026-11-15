@@ -39,6 +39,9 @@ Describe 'Invoke-LabValidation' {
     BeforeEach {
         Mock Write-LabLog { }
         Mock Start-Sleep { }
+        # Advance the clock on each call so a polling loop reaches its deadline at once.
+        $script:clock = [datetime]'2026-01-01'
+        Mock Get-Date { $script:clock = $script:clock.AddMinutes(10); $script:clock }
     }
 
     It 'rejects a site code that is not 3 characters' {

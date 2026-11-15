@@ -66,6 +66,7 @@ function Install-CMConsole {
             $drive = 'HLConsoleSrc'
             try {
                 New-Item -ItemType Directory -Path $work -Force | Out-Null
+                Remove-PSDrive -Name $drive -ErrorAction SilentlyContinue
                 New-PSDrive -Name $drive -PSProvider FileSystem `
                     -Root "\\$SiteServerFqdn\SMS_$SiteCode\tools\ConsoleSetup" -Credential $Cred -ErrorAction Stop | Out-Null
                 Copy-Item -Path "${drive}:\*" -Destination $work -Recurse -Force -ErrorAction Stop
@@ -86,9 +87,6 @@ function Install-CMConsole {
                 Remove-PSDrive -Name $drive -ErrorAction SilentlyContinue
                 Remove-Item -Path $work -Recurse -Force -ErrorAction SilentlyContinue
             }
-
-            # The module path variable is set by the installer; make it available
-            # to later sessions without a reboot.
             [pscustomobject]@{ Status = 'Installed' }
         } -ArgumentList $SiteServerFqdn, $SiteCode, $DomainCredential
 
