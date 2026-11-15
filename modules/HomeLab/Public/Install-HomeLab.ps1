@@ -28,7 +28,9 @@ function Install-HomeLab {
                        Set-CMSoftwareDistributionThreads,
                        New-CMContentShare,
                        Install-CMSoftwareUpdatePoint,
-                       New-CMTestCollection, Set-CMClientCacheSize
+                       New-CMTestCollection, Set-CMClientCacheSize,
+                       Enable-CMEnhancedHttp, Set-LabWebServerTemplateAccess,
+                       Set-CMAdminServiceCertificate, Test-CMAdminServiceTrust
           10-Tools     Copy-CMTools, Set-LabAutoStartStop
 
         Idempotency story: every leaf operation has its own
@@ -1126,6 +1128,27 @@ function Install-HomeLab {
 
         Set-CMClientCacheSize -ComputerName $cmName -DomainCredential $domainCred `
             -SiteCode $cfg.SiteCode
+
+        # Administration service (CMPivot, console, REST) trusted by every
+        # domain member: enhanced HTTP, then a PKI server certificate from
+        # the enterprise CA on port 443 of the SMS Provider. Domain members
+        # trust the enterprise root through Active Directory, so no
+        # per-VM import is needed. See docs/admin-service-pki.md.
+        Enable-CMEnhancedHttp -ComputerName $cmName -DomainCredential $domainCred `
+            -SiteCode $cfg.SiteCode | Out-Null
+        Set-LabWebServerTemplateAccess -ComputerName "$($caVM.Name).$($cfg.DomainName)" `
+            -DomainCredential $domainCred -EnrollComputer $cmName | Out-Null
+        Set-CMAdminServiceCertificate -ComputerName $cmName -DomainCredential $domainCred `
+            -DomainName $cfg.DomainName | Out-Null
+        foreach ($clientVM in $clientVMs) {
+            $trust = Test-CMAdminServiceTrust -ComputerName $clientVM.Name -DomainCredential $domainCred `
+                -ProviderFqdn $cmFqdn
+            if ($trust.Trusted) {
+                Write-LabLog "[$($clientVM.Name)] trusts the administration service certificate ($($trust.Issuer))" -Status OK
+            } else {
+                Write-LabLog "[$($clientVM.Name)] does not trust the administration service certificate: $($trust.Error)" -Status WARN
+            }
+        }
     }
 
     # ---- 10-Tools ----

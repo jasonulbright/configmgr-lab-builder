@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.7.0] - 2026-11-14
+
+### Added
+
+- **The administration service gets a PKI certificate that every domain
+  member trusts.** CMPivot and other callers of the administration service
+  failed with "remote certificate is invalid", because the SMS Provider
+  presented the site self-signed certificate from "SMS Issuing" on port 443.
+  Phase `09-CMConfig` now turns on enhanced HTTP, lets the site server
+  enroll for the Web Server template, requests a certificate with the
+  server FQDN, binds it to port 443, restarts `SMS_EXECUTIVE`, and checks
+  from each client VM that the chain is trusted. Domain members already
+  trust the Enterprise Root CA through Active Directory, so no per-VM
+  import is needed. Each step is idempotent, and the template and binding
+  steps accept `-PlanOnly`. Design, undo steps and Microsoft Learn sources
+  are in `docs/admin-service-pki.md`.
+
 ## [1.6.1] - 2026-11-10
 
 ### Fixed

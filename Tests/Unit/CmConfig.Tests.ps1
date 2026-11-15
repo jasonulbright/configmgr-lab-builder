@@ -277,3 +277,109 @@ Describe 'Set-LabAutoStartStop' {
             Should -Throw '*ValidateSet*'
     }
 }
+
+Describe 'Set-CMAdminServiceCertificate' {
+    It 'rejects a domain name that is not a DNS name' {
+        { Set-CMAdminServiceCertificate -ComputerName CM01 -DomainCredential (New-FakeCred) `
+            -DomainName 'notadomain' } | Should -Throw '*does not match*'
+    }
+    It 'rejects MinValidDays below 1' {
+        { Set-CMAdminServiceCertificate -ComputerName CM01 -DomainCredential (New-FakeCred) `
+            -DomainName 'contoso.com' -MinValidDays 0 } | Should -Throw '*minimum allowed range*'
+    }
+    It 'builds the subject FQDN from the short name and the domain, and passes PlanOnly' {
+        Mock Write-LabLog { }
+        Mock Invoke-LabCommand -MockWith {
+            [pscustomobject]@{ Status = 'Plan'; Thumbprint = 'AA'; OldThumbprint = 'BB'; OldAppId = 'x' }
+        }
+        $r = Set-CMAdminServiceCertificate -ComputerName 'CM01.contoso.com' `
+            -DomainCredential (New-FakeCred) -DomainName 'contoso.com' -PlanOnly
+        $r.Status | Should -Be 'Plan'
+        Should -Invoke Invoke-LabCommand -Times 1 -Exactly -ParameterFilter {
+            $ArgumentList[0] -eq 'CM01.contoso.com' -and
+            $ArgumentList[1] -eq 'CM01' -and
+            $ArgumentList[2] -eq 'WebServer' -and
+            $ArgumentList[5] -eq $true
+        }
+    }
+    It 'keeps the undo data of a real bind in the result' {
+        Mock Write-LabLog { }
+        Mock Invoke-LabCommand -MockWith {
+            [pscustomobject]@{ Status = 'Bound'; Thumbprint = 'AA'; OldThumbprint = 'BB'; OldAppId = 'x' }
+        }
+        $r = Set-CMAdminServiceCertificate -ComputerName CM01 `
+            -DomainCredential (New-FakeCred) -DomainName 'contoso.com'
+        $r.OldThumbprint | Should -Be 'BB'
+        $r.OldAppId      | Should -Be 'x'
+    }
+    It 'is idempotent: the guest script sees the same binding and reports AlreadyBound' {
+        Mock Write-LabLog { }
+        Mock Invoke-LabCommand -MockWith {
+            [pscustomobject]@{ Status = 'AlreadyBound'; Thumbprint = 'AA'; OldThumbprint = 'AA'; OldAppId = 'x' }
+        }
+        (Set-CMAdminServiceCertificate -ComputerName CM01 -DomainCredential (New-FakeCred) `
+            -DomainName 'contoso.com').Status | Should -Be 'AlreadyBound'
+    }
+}
+
+Describe 'Set-CMAdminServiceCertificate guest script' {
+    # The guest script runs on CM01. Static checks keep the security-relevant
+    # choices from drifting without a lab run.
+    BeforeAll {
+        $script:guest = Get-Content -Raw (Join-Path $script:cfgRoot 'Set-CMAdminServiceCertificate.ps1')
+    }
+    It 'never accepts a certificate issued by SMS Issuing or self-signed' {
+        $script:guest | Should -Match "Issuer -notmatch 'SMS Issuing'"
+        $script:guest | Should -Match '\$_\.Issuer -ne \$_\.Subject'
+    }
+    It 'requires the server authentication EKU' {
+        $script:guest | Should -Match '1\.3\.6\.1\.5\.5\.7\.3\.1'
+    }
+    It 'reuses the old application id so the IIS binding keeps its owner' {
+        $script:guest | Should -Match 'appid="\{\$appId\}"'
+    }
+    It 'restores the old binding when the add fails' {
+        $script:guest | Should -Match 'old binding restored'
+    }
+    It 'checks what port 443 presents and throws on a mismatch' {
+        $script:guest | Should -Match "Port 443 presents"
+    }
+    It 'makes no change in PlanOnly before the binding code' {
+        $planIdx = $script:guest.IndexOf('if ($PlanOnly) {', $script:guest.IndexOf('$bound = Get-BoundHttpSys'))
+        $netshIdx = $script:guest.IndexOf('netsh http delete sslcert')
+        $planIdx | Should -BeGreaterThan 0
+        $planIdx | Should -BeLessThan $netshIdx
+    }
+}
+
+Describe 'Enable-CMEnhancedHttp' {
+    It 'rejects a non-3-character SiteCode' {
+        { Enable-CMEnhancedHttp -ComputerName CM01 -DomainCredential (New-FakeCred) -SiteCode 'XX' } |
+            Should -Throw '*length*'
+    }
+    It 'reports the guest status' {
+        Mock Write-LabLog { }
+        Mock Invoke-LabCommand -MockWith { [pscustomobject]@{ Status = 'AlreadyEnabled' } }
+        (Enable-CMEnhancedHttp -ComputerName CM01 -DomainCredential (New-FakeCred) -SiteCode 'MCM').Status |
+            Should -Be 'AlreadyEnabled'
+    }
+}
+
+Describe 'Test-CMAdminServiceTrust' {
+    It 'returns Trusted false with the error text for an untrusted chain' {
+        Mock Invoke-LabCommand -MockWith {
+            [pscustomobject]@{ Trusted = $false; Subject = $null; Issuer = $null; Error = 'remote certificate is invalid' }
+        }
+        $r = Test-CMAdminServiceTrust -ComputerName CLIENT01 -DomainCredential (New-FakeCred) `
+            -ProviderFqdn 'CM01.contoso.com'
+        $r.Trusted | Should -BeFalse
+        $r.Error   | Should -Match 'invalid'
+    }
+    It 'returns Trusted true for a trusted chain' {
+        Mock Invoke-LabCommand -MockWith {
+            [pscustomobject]@{ Trusted = $true; Subject = 'CN=CM01.contoso.com'; Issuer = 'CN=CONTOSO Root CA, DC=contoso, DC=com'; Error = $null }
+        }
+        (Test-CMAdminServiceTrust -ComputerName CLIENT01 -DomainCredential (New-FakeCred) `
+            -ProviderFqdn 'CM01.contoso.com').Trusted | Should -BeTrue
+    }
+}

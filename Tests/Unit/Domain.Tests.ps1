@@ -335,3 +335,31 @@ Describe 'Install-LabDC separates "no domain yet" from "could not probe"' {
         Should -Invoke Install-WindowsFeature -Times 1 -Exactly
     }
 }
+
+Describe 'Set-LabWebServerTemplateAccess' {
+    BeforeAll {
+        . (Join-Path $script:domainRoot 'Set-LabWebServerTemplateAccess.ps1')
+    }
+    It 'rejects a computer name with a trailing dollar sign' {
+        { Set-LabWebServerTemplateAccess -ComputerName DC01 -DomainCredential (New-FakeCred) `
+            -EnrollComputer 'CM01$' } | Should -Throw '*does not match*'
+    }
+    It 'passes the computer, the template and PlanOnly to the guest' {
+        Mock Write-LabLog { }
+        Mock Invoke-LabCommand -MockWith {
+            [pscustomobject]@{ Status = 'WouldGrant'; TemplatePublished = 'AlreadyPublished'; TemplateDn = 'x' }
+        }
+        $r = Set-LabWebServerTemplateAccess -ComputerName DC01 -DomainCredential (New-FakeCred) `
+            -EnrollComputer CM01 -PlanOnly
+        $r.Status | Should -Be 'WouldGrant'
+        Should -Invoke Invoke-LabCommand -Times 1 -Exactly -ParameterFilter {
+            $ArgumentList[0] -eq 'CM01' -and $ArgumentList[1] -eq 'WebServer' -and $ArgumentList[2] -eq $true
+        }
+    }
+    It 'grants only the Enroll extended right, scoped to one account' {
+        $src = Get-Content -Raw (Join-Path $script:domainRoot 'Set-LabWebServerTemplateAccess.ps1')
+        $src | Should -Match '0e10c968-78fb-11d2-90d4-00c04f79dc55'
+        $src | Should -Match 'Get-ADComputer -Identity \$EnrollComputer'
+        $src | Should -Not -Match 'Domain Computers'
+    }
+}
