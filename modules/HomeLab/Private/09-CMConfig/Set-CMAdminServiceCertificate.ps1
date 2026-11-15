@@ -170,14 +170,17 @@ function Set-CMAdminServiceCertificate {
                         'do {'
                         '    try {'
                         "        `$req = Get-Certificate -Template '$TemplateName' -SubjectName 'CN=$Fqdn' -DnsName '$Fqdn','$Short' -CertStoreLocation Cert:\LocalMachine\My -ErrorAction Stop"
-                        "        Set-Content -Path '$resultPath' -Value ('OK ' + `$req.Certificate.Thumbprint)"
+                        '        if (-not $req.Certificate) { throw "request status $($req.Status)" }'
+                        "        Set-Content -Path '$resultPath.tmp' -Value ('OK ' + `$req.Certificate.Thumbprint)"
+                        "        Move-Item -Path '$resultPath.tmp' -Destination '$resultPath' -Force"
                         '        exit 0'
                         '    } catch {'
                         '        $err = $_.Exception.Message'
                         '        Start-Sleep -Seconds 15'
                         '    }'
                         '} while ((Get-Date) -lt $deadline)'
-                        "Set-Content -Path '$resultPath' -Value ('ERR ' + `$err)"
+                        "Set-Content -Path '$resultPath.tmp' -Value ('ERR ' + `$err)"
+                        "Move-Item -Path '$resultPath.tmp' -Destination '$resultPath' -Force"
                     ) -join "`r`n"
                     try {
                         Set-Content -Path $scriptPath -Value $taskScript -Encoding ASCII
@@ -193,7 +196,7 @@ function Set-CMAdminServiceCertificate {
                         $enrollResult = if (Test-Path -Path $resultPath) { (Get-Content -Path $resultPath -Raw).Trim() } else { 'ERR the enrollment task did not finish' }
                     } finally {
                         Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-                        Remove-Item -Path $scriptPath, $resultPath -Force -ErrorAction SilentlyContinue
+                        Remove-Item -Path $scriptPath, $resultPath, "$resultPath.tmp" -Force -ErrorAction SilentlyContinue
                     }
                     if ($enrollResult -notmatch '^OK ([0-9A-Fa-f]{40})$') {
                         throw "Certificate request failed: $enrollResult"
