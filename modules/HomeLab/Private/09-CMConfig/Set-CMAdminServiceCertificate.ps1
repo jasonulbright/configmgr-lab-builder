@@ -154,21 +154,51 @@ function Set-CMAdminServiceCertificate {
                     # changed, can take a while to reach the CA and this client.
                     # Refresh policy once, then retry for up to 5 minutes.
                     certutil -pulse 2>&1 | Out-Null
-                    $enrollDeadline = (Get-Date).AddMinutes(5)
-                    $enrollError = $null
-                    do {
-                        try {
-                            $req = Get-Certificate -Template $TemplateName `
-                                -SubjectName "CN=$Fqdn" -DnsName $Fqdn, $Short `
-                                -CertStoreLocation Cert:\LocalMachine\My -ErrorAction Stop
-                            $cert = $req.Certificate
-                            $enrollError = $null
-                        } catch {
-                            $enrollError = $_.Exception.Message
-                            Start-Sleep -Seconds 15
+                    #
+                    # The enrollment must run as the computer account. A WinRM
+                    # session runs as the admin user and cannot pass its
+                    # identity on to the CA (error 0x800704dc), so a one-time
+                    # scheduled task runs the request as SYSTEM. The task
+                    # writes its result to a file, then both are removed.
+                    $stamp = [guid]::NewGuid().ToString('N')
+                    $taskName = "HomeLab-AdminServiceCert-$stamp"
+                    $scriptPath = Join-Path $env:windir "Temp\$taskName.ps1"
+                    $resultPath = Join-Path $env:windir "Temp\$taskName.txt"
+                    $taskScript = @(
+                        '$deadline = (Get-Date).AddMinutes(5)'
+                        '$err = $null'
+                        'do {'
+                        '    try {'
+                        "        `$req = Get-Certificate -Template '$TemplateName' -SubjectName 'CN=$Fqdn' -DnsName '$Fqdn','$Short' -CertStoreLocation Cert:\LocalMachine\My -ErrorAction Stop"
+                        "        Set-Content -Path '$resultPath' -Value ('OK ' + `$req.Certificate.Thumbprint)"
+                        '        exit 0'
+                        '    } catch {'
+                        '        $err = $_.Exception.Message'
+                        '        Start-Sleep -Seconds 15'
+                        '    }'
+                        '} while ((Get-Date) -lt $deadline)'
+                        "Set-Content -Path '$resultPath' -Value ('ERR ' + `$err)"
+                    ) -join "`r`n"
+                    try {
+                        Set-Content -Path $scriptPath -Value $taskScript -Encoding ASCII
+                        $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
+                            -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
+                        $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+                        Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Force | Out-Null
+                        Start-ScheduledTask -TaskName $taskName
+                        $taskDeadline = (Get-Date).AddMinutes(7)
+                        while (-not (Test-Path -Path $resultPath) -and (Get-Date) -lt $taskDeadline) {
+                            Start-Sleep -Seconds 5
                         }
-                    } while (-not $cert -and (Get-Date) -lt $enrollDeadline)
-                    if (-not $cert) { throw "Certificate request failed: $enrollError" }
+                        $enrollResult = if (Test-Path -Path $resultPath) { (Get-Content -Path $resultPath -Raw).Trim() } else { 'ERR the enrollment task did not finish' }
+                    } finally {
+                        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+                        Remove-Item -Path $scriptPath, $resultPath -Force -ErrorAction SilentlyContinue
+                    }
+                    if ($enrollResult -notmatch '^OK ([0-9A-Fa-f]{40})$') {
+                        throw "Certificate request failed: $enrollResult"
+                    }
+                    $cert = Get-Item -Path "Cert:\LocalMachine\My\$($Matches[1])"
                 }
             }
 

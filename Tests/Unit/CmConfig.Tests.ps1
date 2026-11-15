@@ -347,8 +347,12 @@ Describe 'Set-CMAdminServiceCertificate guest script' {
     It 'rolls the old binding back when port 443 presents the wrong certificate' {
         $script:guest | Should -Match 'Rollback: \$rollback'
     }
+    It 'requests the certificate as SYSTEM, because a WinRM session cannot reach the CA' {
+        $script:guest | Should -Match "New-ScheduledTaskPrincipal -UserId 'SYSTEM'"
+        $script:guest | Should -Match 'Unregister-ScheduledTask'
+    }
     It 'retries the certificate request while the template and ACL propagate' {
-        $script:guest | Should -Match 'enrollDeadline'
+        $script:guest | Should -Match 'AddMinutes\(5\)'
     }
     It 'makes no change in PlanOnly before the binding code' {
         $planIdx = $script:guest.IndexOf('if ($PlanOnly) {', $script:guest.IndexOf('$bound = Get-BoundHttpSys'))
