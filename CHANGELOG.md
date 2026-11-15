@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.8.0] - 2026-11-14
+## [2026.1114.1] - 2026-11-14
 
 ### Added
 
@@ -16,10 +16,6 @@
 - **`docs/rebuild-runbook.md`** records the rebuild steps, what the build
   does without manual steps, what stays outside the builder on purpose, and
   the measured time per phase.
-## [1.7.0] - 2026-11-14
-
-### Added
-
 - **The administration service gets a PKI certificate that every domain
   member trusts.** CMPivot and other callers of the administration service
   failed with "remote certificate is invalid", because the SMS Provider
