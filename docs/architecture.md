@@ -104,6 +104,10 @@ the engine is idempotent everywhere.
                      New-CMTestCollection ('HomeLab - Test Deployments'
                        + CLIENT01 direct member + daily 00:00-06:00 MW)
                      Set-CMClientCacheSize (40 GB default-setting)
+                     Enable-CMEnhancedHttp, Set-LabWebServerTemplateAccess,
+                     Set-CMAdminServiceCertificate (PKI cert on 443),
+                     Test-CMAdminServiceTrust (from each client)
+                     -- see docs/admin-service-pki.md
                                           │
    10-Tools          Copy-CMTools (cc4cm + ApplicationPackager, fail-soft)
                      Set-LabAutoStartStop (per-VM Hyper-V autostart policy)
