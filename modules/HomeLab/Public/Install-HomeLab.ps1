@@ -31,7 +31,10 @@ function Install-HomeLab {
                        New-CMTestCollection, Set-CMClientCacheSize,
                        Enable-CMEnhancedHttp, Set-LabWebServerTemplateAccess,
                        Set-CMAdminServiceCertificate, Test-CMAdminServiceTrust
-          10-Tools     Copy-CMTools, Set-LabAutoStartStop
+          10-Tools     Copy-CMTools, Install-CMConsole (client VMs),
+                       Set-LabAutoStartStop
+          12-Validate  Invoke-LabValidation (WinRM, managed client, console,
+                       admin service trust, CMPivot)
 
         Idempotency story: every leaf operation has its own
         AlreadyInstalled / AlreadyExists short-circuit, so re-running
@@ -1162,6 +1165,12 @@ function Install-HomeLab {
 
         Copy-CMTools -ComputerName $siteVM.Name -DomainCredential $domainCred | Out-Null
 
+        # Client VMs get the console too, for console-based tests and tools.
+        foreach ($clientVM in $clientVMs) {
+            Install-CMConsole -ComputerName "$($clientVM.Name).$($cfg.DomainName)" -DomainCredential $domainCred `
+                -SiteServerFqdn "$($siteVM.Name).$($cfg.DomainName)" -SiteCode $cfg.SiteCode | Out-Null
+        }
+
         # Walk every VM in the topology so role-per-server / multi-DP /
         # CAS layouts inherit auto-start policy without a code change.
         $autoStartVms = foreach ($vm in $cfg.VMs) {
@@ -1180,6 +1189,16 @@ function Install-HomeLab {
         Invoke-LabPostCmCustomization -ComputerName $siteVM.Name -DomainCredential $domainCred `
             -SiteCode $cfg.SiteCode -Config $cfg -PostCmConfig $PostCmConfig `
             -IsoRoot $isoRoot | Out-Null
+    }
+
+    # ---- 12-Validate ----
+    if (-not (_Skip '12-Validate')) {
+        Write-LabLog '--- Phase 12-Validate ---' -Status INFO
+        if (-not $domainCred) { $domainCred = Get-LabCredential -Identity Admin -Config $cfg }
+        Invoke-LabValidation -SiteServer $siteVM.Name -DomainName $cfg.DomainName -SiteCode $cfg.SiteCode `
+            -ClientNames @($clientVMs | ForEach-Object { $_.Name }) `
+            -AllVmNames @($cfg.VMs | ForEach-Object { $_.Name }) `
+            -DomainCredential $domainCred | Out-Null
     }
 
     $elapsed = (Get-Date) - $deployStart
