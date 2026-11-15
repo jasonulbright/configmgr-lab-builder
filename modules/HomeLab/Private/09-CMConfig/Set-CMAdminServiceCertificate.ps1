@@ -34,7 +34,7 @@ function Set-CMAdminServiceCertificate {
 
         -PlanOnly changes nothing and reports what a real run would do.
 
-        Undo: netsh http delete sslcert ipport=0.0.0.0:443, then
+        Undo: delete the sslcert binding for 0.0.0.0:443 with netsh, then
         netsh http add sslcert ipport=0.0.0.0:443 certhash=<OldThumbprint>
         appid={<OldAppId>} certstorename=MY, then restart SMS_EXECUTIVE.
         See docs/admin-service-pki.md.
@@ -150,14 +150,32 @@ function Set-CMAdminServiceCertificate {
             if (-not $cert) {
                 $certAction = if ($PlanOnly) { 'WouldRequest' } else { 'Requested' }
                 if (-not $PlanOnly) {
-                    $req = Get-Certificate -Template $TemplateName `
-                        -SubjectName "CN=$Fqdn" -DnsName $Fqdn, $Short `
-                        -CertStoreLocation Cert:\LocalMachine\My -ErrorAction Stop
-                    $cert = $req.Certificate
+                    # A template that was just published, or an ACL that was just
+                    # changed, can take a while to reach the CA and this client.
+                    # Refresh policy once, then retry for up to 5 minutes.
+                    certutil -pulse 2>&1 | Out-Null
+                    $enrollDeadline = (Get-Date).AddMinutes(5)
+                    $enrollError = $null
+                    do {
+                        try {
+                            $req = Get-Certificate -Template $TemplateName `
+                                -SubjectName "CN=$Fqdn" -DnsName $Fqdn, $Short `
+                                -CertStoreLocation Cert:\LocalMachine\My -ErrorAction Stop
+                            $cert = $req.Certificate
+                            $enrollError = $null
+                        } catch {
+                            $enrollError = $_.Exception.Message
+                            Start-Sleep -Seconds 15
+                        }
+                    } while (-not $cert -and (Get-Date) -lt $enrollDeadline)
+                    if (-not $cert) { throw "Certificate request failed: $enrollError" }
                 }
             }
 
             $bound = Get-BoundHttpSys
+            if (-not $bound.Hash -and (netsh http show sslcert ipport=0.0.0.0:443 2>&1 | Out-String) -match 'IP:port') {
+                throw 'netsh shows a binding on 0.0.0.0:443 but its certificate hash could not be read'
+            }
             $thumb = if ($cert) { $cert.Thumbprint.ToUpper() } else { $null }
 
             if ($PlanOnly) {
@@ -174,6 +192,7 @@ function Set-CMAdminServiceCertificate {
 
             $status = 'AlreadyBound'
             $restart = $false
+            $appId = $bound.AppId
             if ($bound.Hash -ne $thumb) {
                 $appId = if ($bound.AppId) { $bound.AppId } else { [guid]::NewGuid().ToString() }
                 if ($bound.Hash) {
@@ -183,10 +202,12 @@ function Set-CMAdminServiceCertificate {
                 netsh http add sslcert ipport=0.0.0.0:443 certhash=$thumb appid="{$appId}" certstorename=MY | Out-Null
                 if ($LASTEXITCODE -ne 0) {
                     # Put the old binding back before failing.
+                    $restored = 'no old binding to restore'
                     if ($bound.Hash) {
                         netsh http add sslcert ipport=0.0.0.0:443 certhash=$($bound.Hash) appid="{$appId}" certstorename=MY | Out-Null
+                        $restored = if ($LASTEXITCODE -eq 0) { 'old binding restored' } else { "RESTORE FAILED, rebind $($bound.Hash) by hand" }
                     }
-                    throw 'netsh http add sslcert failed; old binding restored'
+                    throw "netsh http add sslcert failed; $restored"
                 }
                 $status = 'Bound'
                 $restart = $true
@@ -212,7 +233,13 @@ function Set-CMAdminServiceCertificate {
                 Start-Sleep -Seconds 10
             } while ((Get-Date) -lt $deadline)
             if ($presented -ne $thumb) {
-                throw "Port 443 presents '$presented', expected '$thumb'"
+                $rollback = 'not attempted'
+                if ($status -eq 'Bound' -and $bound.Hash) {
+                    netsh http delete sslcert ipport=0.0.0.0:443 | Out-Null
+                    netsh http add sslcert ipport=0.0.0.0:443 certhash=$($bound.Hash) appid="{$appId}" certstorename=MY | Out-Null
+                    $rollback = if ($LASTEXITCODE -eq 0) { 'old binding restored' } else { 'ROLLBACK FAILED' }
+                }
+                throw "Port 443 presents '$presented', expected '$thumb'. Old binding: $($bound.Hash) app {$($bound.AppId)}. Rollback: $rollback"
             }
 
             [pscustomobject]@{

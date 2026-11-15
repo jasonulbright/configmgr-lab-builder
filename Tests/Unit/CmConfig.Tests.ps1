@@ -344,9 +344,15 @@ Describe 'Set-CMAdminServiceCertificate guest script' {
     It 'checks what port 443 presents and throws on a mismatch' {
         $script:guest | Should -Match "Port 443 presents"
     }
+    It 'rolls the old binding back when port 443 presents the wrong certificate' {
+        $script:guest | Should -Match 'Rollback: \$rollback'
+    }
+    It 'retries the certificate request while the template and ACL propagate' {
+        $script:guest | Should -Match 'enrollDeadline'
+    }
     It 'makes no change in PlanOnly before the binding code' {
         $planIdx = $script:guest.IndexOf('if ($PlanOnly) {', $script:guest.IndexOf('$bound = Get-BoundHttpSys'))
-        $netshIdx = $script:guest.IndexOf('netsh http delete sslcert')
+        $netshIdx = $script:guest.IndexOf('netsh http delete sslcert ipport=0.0.0.0:443 | Out-Null')
         $planIdx | Should -BeGreaterThan 0
         $planIdx | Should -BeLessThan $netshIdx
     }

@@ -1141,8 +1141,12 @@ function Install-HomeLab {
         Set-CMAdminServiceCertificate -ComputerName $cmName -DomainCredential $domainCred `
             -DomainName $cfg.DomainName | Out-Null
         foreach ($clientVM in $clientVMs) {
-            $trust = Test-CMAdminServiceTrust -ComputerName $clientVM.Name -DomainCredential $domainCred `
-                -ProviderFqdn $cmFqdn
+            try {
+                $trust = Test-CMAdminServiceTrust -ComputerName $clientVM.Name -DomainCredential $domainCred `
+                    -ProviderFqdn $cmFqdn
+            } catch {
+                $trust = [pscustomobject]@{ Trusted = $false; Issuer = $null; Error = $_.Exception.Message.Split([char]10)[0] }
+            }
             if ($trust.Trusted) {
                 Write-LabLog "[$($clientVM.Name)] trusts the administration service certificate ($($trust.Issuer))" -Status OK
             } else {
