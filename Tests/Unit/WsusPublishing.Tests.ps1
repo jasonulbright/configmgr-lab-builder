@@ -84,6 +84,22 @@ Describe 'Set-LabWsusPublishing' {
             Should -Throw '*incomplete on: CLIENT01*'
     }
 
+    It 'throws when the server itself is not trusted' {
+        Mock Invoke-LabCommand -MockWith {
+            [pscustomobject]@{
+                Thumbprint = 'AB12'; Status = 'Reused'; CertBase64 = 'AAAA'
+                Trust = [pscustomobject]@{ Computer = 'CM01'; Added = @(); Trusted = $false }
+            }
+        }
+        { Set-LabWsusPublishing -ComputerName CM01 -DomainCredential (New-FakeCred) } |
+            Should -Throw '*incomplete on: CM01*'
+    }
+
+    It 'checks the self-signed certificate registry value' {
+        $src = Get-Content -Raw (Join-Path $script:toolsRoot 'Set-LabWsusPublishing.ps1')
+        $src | Should -Match 'EnableSelfSignedCertificates is not set'
+    }
+
     It 'keeps the guest steps idempotent and sends only the public certificate' {
         $src = Get-Content -Raw (Join-Path $script:toolsRoot 'Set-LabWsusPublishing.ps1')
         $src | Should -Match "Status = 'Reused'"

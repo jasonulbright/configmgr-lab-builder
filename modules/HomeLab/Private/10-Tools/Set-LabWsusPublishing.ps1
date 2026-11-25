@@ -140,8 +140,10 @@ function Set-LabWsusPublishing {
 
             # The site server reads this value when it manages self-signed WSUS signing certificates.
             $setup = 'HKLM:\SOFTWARE\Microsoft\Update Services\Server\Setup'
-            if (Test-Path -Path $setup) {
-                New-ItemProperty -Path $setup -Name EnableSelfSignedCertificates -Value 1 -PropertyType DWord -Force | Out-Null
+            if (-not (Test-Path -Path $setup)) { New-Item -Path $setup -Force | Out-Null }
+            New-ItemProperty -Path $setup -Name EnableSelfSignedCertificates -Value 1 -PropertyType DWord -Force | Out-Null
+            if ((Get-ItemProperty -Path $setup -Name EnableSelfSignedCertificates).EnableSelfSignedCertificates -ne 1) {
+                throw 'EnableSelfSignedCertificates is not set on the WSUS server'
             }
 
             $b64 = [Convert]::ToBase64String($cert.Export('Cert'))

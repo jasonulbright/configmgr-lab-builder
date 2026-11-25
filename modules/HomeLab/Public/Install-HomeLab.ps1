@@ -1184,10 +1184,18 @@ function Install-HomeLab {
         if (-not $SkipWsusPublishing) {
             $clientFqdns = @($clientVMs | ForEach-Object { "$($_.Name).$($cfg.DomainName)" })
             foreach ($c in $clientFqdns) {
-                Install-LabWsusConsole -ComputerName $c -DomainCredential $domainCred | Out-Null
+                try {
+                    Install-LabWsusConsole -ComputerName $c -DomainCredential $domainCred | Out-Null
+                } catch {
+                    Write-LabLog "Phase 10-Tools: WSUS console on $c failed: $($_.Exception.Message.Split([char]10)[0])" -Status WARN
+                }
             }
-            Set-LabWsusPublishing -ComputerName "$($siteVM.Name).$($cfg.DomainName)" -DomainCredential $domainCred `
-                -TrustedComputerName $clientFqdns | Out-Null
+            try {
+                Set-LabWsusPublishing -ComputerName "$($siteVM.Name).$($cfg.DomainName)" -DomainCredential $domainCred `
+                    -TrustedComputerName $clientFqdns | Out-Null
+            } catch {
+                Write-LabLog "Phase 10-Tools: WSUS publishing trust failed: $($_.Exception.Message.Split([char]10)[0])" -Status WARN
+            }
         }
 
         # Walk every VM in the topology so role-per-server / multi-DP /

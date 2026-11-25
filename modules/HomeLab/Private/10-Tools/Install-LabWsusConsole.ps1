@@ -55,8 +55,24 @@ function Install-LabWsusConsole {
                 $feat = Install-WindowsFeature -Name UpdateServices-UI -ErrorAction Stop
                 if (-not $feat.Success) { throw "Install-WindowsFeature UpdateServices-UI failed: $($feat | Out-String)" }
             } else {
-                $cap = Add-WindowsCapability -Online -Name $capability -ErrorAction Stop
-                if ($cap.RestartNeeded) { Write-Warning 'The WSUS console install asks for a restart.' }
+                # A client that uses the lab WSUS cannot download the capability
+                # from it (error 0x800f0954). Point it at Windows Update for the
+                # install only, then restore the setting.
+                $au = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU'
+                $useWu = (Get-ItemProperty -Path $au -Name UseWUServer -ErrorAction SilentlyContinue).UseWUServer
+                try {
+                    if ($useWu -eq 1) {
+                        Set-ItemProperty -Path $au -Name UseWUServer -Value 0
+                        Restart-Service -Name wuauserv -Force
+                    }
+                    $cap = Add-WindowsCapability -Online -Name $capability -ErrorAction Stop
+                    if ($cap.RestartNeeded) { Write-Warning 'The WSUS console install asks for a restart.' }
+                } finally {
+                    if ($useWu -eq 1) {
+                        Set-ItemProperty -Path $au -Name UseWUServer -Value 1
+                        Restart-Service -Name wuauserv -Force
+                    }
+                }
             }
 
             if (-not (Test-Path -Path $gac)) {
