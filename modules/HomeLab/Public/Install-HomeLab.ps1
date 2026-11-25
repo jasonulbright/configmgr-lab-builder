@@ -32,6 +32,9 @@ function Install-HomeLab {
                        Enable-CMEnhancedHttp, Set-LabWebServerTemplateAccess,
                        Set-CMAdminServiceCertificate, Test-CMAdminServiceTrust
           10-Tools     Copy-CMTools, Install-CMConsole (client VMs),
+                       Install-LabWsusConsole (client VMs),
+                       Set-LabWsusPublishing (signing certificate, trust;
+                       on by default, off with -SkipWsusPublishing),
                        Set-LabAutoStartStop
           12-Validate  Invoke-LabValidation (WinRM, managed client, console,
                        admin service trust, CMPivot)
@@ -149,6 +152,11 @@ function Install-HomeLab {
     param(
         [Parameter()]
         [string]$ConfigPath,
+
+        # WSUS publishing prep (console on client VMs, signing certificate,
+        # trust stores, Windows Update policy) is on by default.
+        [Parameter()]
+        [switch]$SkipWsusPublishing,
 
         [Parameter()]
         [string]$Template,
@@ -1169,6 +1177,25 @@ function Install-HomeLab {
         foreach ($clientVM in $clientVMs) {
             Install-CMConsole -ComputerName "$($clientVM.Name).$($cfg.DomainName)" -DomainCredential $domainCred `
                 -SiteServerFqdn "$($siteVM.Name).$($cfg.DomainName)" -SiteCode $cfg.SiteCode | Out-Null
+        }
+
+        # Local and third-party publishing to WSUS: console and API on the
+        # client VMs, a signing certificate, and the trust Windows Update needs.
+        if (-not $SkipWsusPublishing) {
+            $clientFqdns = @($clientVMs | ForEach-Object { "$($_.Name).$($cfg.DomainName)" })
+            foreach ($c in $clientFqdns) {
+                try {
+                    Install-LabWsusConsole -ComputerName $c -DomainCredential $domainCred | Out-Null
+                } catch {
+                    Write-LabLog "Phase 10-Tools: WSUS console on $c failed: $($_.Exception.Message.Split([char]10)[0])" -Status WARN
+                }
+            }
+            try {
+                Set-LabWsusPublishing -ComputerName "$($siteVM.Name).$($cfg.DomainName)" -DomainCredential $domainCred `
+                    -TrustedComputerName $clientFqdns | Out-Null
+            } catch {
+                Write-LabLog "Phase 10-Tools: WSUS publishing trust failed: $($_.Exception.Message.Split([char]10)[0])" -Status WARN
+            }
         }
 
         # Walk every VM in the topology so role-per-server / multi-DP /

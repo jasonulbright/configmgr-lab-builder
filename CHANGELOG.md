@@ -1,5 +1,27 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **WSUS publishing prep, on by default.** Phase `10-Tools` now installs the
+  WSUS administration console and API on the client VMs
+  (`Install-LabWsusConsole`: RSAT capability `Rsat.WSUS.Tools` on Windows
+  client, feature `UpdateServices-UI` on Windows Server). The builder
+  installed the WSUS role but never the console on client VMs, and it never
+  created or trusted a signing certificate, so a publish from a client to
+  the site server could not work.
+- **`Set-LabWsusPublishing`** creates (or reuses) a self-signed code-signing
+  certificate `CN=HomeLab WSUS Signing` in the WSUS store of the site
+  server, adds it to Trusted Publishers and Trusted Root on the site server
+  and on every client VM, turns on the Windows Update policy "Allow signed
+  content from intranet Microsoft update service location"
+  (`AcceptTrustedPublisherCerts`), and sets `EnableSelfSignedCertificates`
+  on the site server. Only the public certificate leaves the server. Every
+  step is idempotent. Sources: Microsoft Learn, "Manage certificates and
+  security for Updates Publisher" and "Enable third-party updates".
+- `Install-HomeLab -SkipWsusPublishing` turns the step off.
+
 ## [2026.1114.10] - 2026-11-14
 
 ### Added

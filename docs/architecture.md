@@ -164,7 +164,8 @@ modules/HomeLab/
                      Set-CMClientCacheSize, Add-CMRoleFallbackStatusPoint,
                      Add-CMRoleServiceConnectionPoint,
                      Add-CMRoleReportingServicePoint
-        10-Tools/    Copy-CMTools, Install-CMConsole, Set-LabAutoStartStop
+        10-Tools/    Copy-CMTools, Install-CMConsole, Install-LabWsusConsole,
+                     Set-LabWsusPublishing, Set-LabAutoStartStop
         12-Validate/ Invoke-LabValidation (health proof, see docs/rebuild-runbook.md)
 ```
 
