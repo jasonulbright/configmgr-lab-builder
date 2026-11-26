@@ -56,9 +56,7 @@ Describe 'Install-LabWsusConsole client install' {
     }
 
     It 'restores a saved policy before it checks for an installed console' {
-        $script:consoleSource | Should -Match "(?s)?
-        Restore-UpdatePolicy?
-        if \(Test-Path -Path \`$api\)"
+        $script:consoleSource | Should -Match 'Restore-UpdatePolicy\s+if \(Test-Path -Path \$api\)'
     }
 
     It 'limits the install inside the script and gives the task a longer limit' {
