@@ -55,6 +55,17 @@ Describe 'Install-LabWsusConsole client install' {
         $script:consoleSource | Should -Match '(?s)finally\s*\{\s*Restore-UpdatePolicy'
     }
 
+    It 'restores a saved policy before it checks for an installed console' {
+        $script:consoleSource | Should -Match "(?s)?
+        Restore-UpdatePolicy?
+        if \(Test-Path -Path \`$api\)"
+    }
+
+    It 'limits the install inside the script and gives the task a longer limit' {
+        $script:consoleSource | Should -Match 'Wait-Job \$job -Timeout'
+        $script:consoleSource | Should -Match 'New-TimeSpan -Minutes \(\$TimeoutMinutes \+ 20\)'
+    }
+
     It 'does not redirect the error stream of reg import' {
         $script:consoleSource | Should -Not -Match 'reg\.exe import [^\r\n]*2>&1'
     }

@@ -38,7 +38,8 @@ function Install-LabWsusConsole {
         Domain admin credential.
 
     .PARAMETER TimeoutMinutes
-        Time limit of the client install task.
+        Time limit of the client install. The task limit is 20 minutes longer,
+        so that the policy restore runs after a timeout.
 
     .EXAMPLE
         Install-LabWsusConsole -ComputerName CLIENT01 -DomainCredential $cred
@@ -61,7 +62,9 @@ function Install-LabWsusConsole {
 
     # Runs on a client VM as SYSTEM. Passed as text and written to a file there.
     $clientInstall = {
+        param([int]$LimitMinutes)
         $ErrorActionPreference = 'Stop'
+        $api = Join-Path $env:windir 'Microsoft.NET\assembly\GAC_MSIL\Microsoft.UpdateServices.Administration'
         $name = 'Rsat.WSUS.Tools~~~~0.0.1.0'
         $policy = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate'
         $cache = 'HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UpdatePolicy\GPCache'
@@ -88,7 +91,9 @@ function Install-LabWsusConsole {
             'The Windows Update policy is restored.'
         }
 
+        # Before the installed check: a run that was ended can leave the policy changed with the console installed.
         Restore-UpdatePolicy
+        if (Test-Path -Path $api) { 'STATUS:AlreadyInstalled'; return }
         try {
             $server = (Get-ItemProperty -Path $policy -Name WUServer -ErrorAction SilentlyContinue).WUServer
             if ($server) {
@@ -109,8 +114,11 @@ function Install-LabWsusConsole {
                 foreach ($service in 'usosvc', 'wuauserv') { Start-Service $service -ErrorAction SilentlyContinue }
                 Start-Sleep -Seconds 15
             }
-            $added = Add-WindowsCapability -Online -Name $name
-            if ($added.RestartNeeded) { 'The WSUS console install asks for a restart.' }
+            # The limit is inside the script, because the end of a task runs no finally block. No Stop-Job on a
+            # timeout: it waits for a job in a servicing call, and the restore must not wait.
+            $job = Start-Job { param($n) (Add-WindowsCapability -Online -Name $n).RestartNeeded } -ArgumentList $name
+            if (-not (Wait-Job $job -Timeout ($LimitMinutes * 60))) { throw "The install did not end in $LimitMinutes minutes." }
+            if (Receive-Job $job) { 'The WSUS console install asks for a restart.' }
         } finally {
             Restore-UpdatePolicy
         }
@@ -122,12 +130,12 @@ function Install-LabWsusConsole {
             $ErrorActionPreference = 'Stop'
             $gac = Join-Path $env:windir 'Microsoft.NET\assembly\GAC_MSIL\Microsoft.UpdateServices.Administration'
 
-            if (Test-Path -Path $gac) {
-                return [pscustomobject]@{ Status = 'AlreadyInstalled' }
-            }
-
             $isServer = ((Get-CimInstance Win32_OperatingSystem).ProductType -ne 1)
+            $status = 'Installed'
             if ($isServer) {
+                if (Test-Path -Path $gac) {
+                    return [pscustomobject]@{ Status = 'AlreadyInstalled' }
+                }
                 $feat = Install-WindowsFeature -Name UpdateServices-UI -ErrorAction Stop
                 if (-not $feat.Success) { throw "Install-WindowsFeature UpdateServices-UI failed: $($feat | Out-String)" }
             } else {
@@ -137,10 +145,10 @@ function Install-LabWsusConsole {
                 $log = Join-Path $folder 'install.log'
                 Set-Content -Path $script -Value $ClientInstallText -Encoding UTF8
                 $task = 'HomeLab-WsusConsole'
-                $command = "try { & '$script' *>&1 | Out-File '$log' -Encoding utf8 } catch { `$_ | Out-File '$log' -Encoding utf8 -Append; exit 1 }"
+                $command = "try { & '$script' -LimitMinutes $TimeoutMinutes *>&1 | Out-File '$log' -Encoding utf8 } catch { `$_ | Out-File '$log' -Encoding utf8 -Append; exit 1 }"
                 $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
                 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $encoded"
-                $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes $TimeoutMinutes)
+                $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes ($TimeoutMinutes + 20))
                 $null = Register-ScheduledTask -TaskName $task -Action $action -Settings $settings -User 'SYSTEM' -RunLevel Highest -Force
                 try {
                     $started = Get-Date
@@ -150,11 +158,12 @@ function Install-LabWsusConsole {
                         $state = (Get-ScheduledTask -TaskName $task).State
                         $info = Get-ScheduledTaskInfo -TaskName $task
                     } while (($state -eq 'Running' -or $info.LastRunTime -lt $started.AddSeconds(-5)) -and
-                        (Get-Date) -lt $started.AddMinutes($TimeoutMinutes + 1))
+                        (Get-Date) -lt $started.AddMinutes($TimeoutMinutes + 21))
                     $text = if (Test-Path -Path $log) { Get-Content -Path $log -Raw } else { '' }
                     if ($state -eq 'Running' -or $info.LastTaskResult -ne 0) {
                         throw "The WSUS console install failed (task state $state, result $($info.LastTaskResult)): $text"
                     }
+                    if ($text -match 'STATUS:AlreadyInstalled') { $status = 'AlreadyInstalled' }
                 } finally {
                     Unregister-ScheduledTask -TaskName $task -Confirm:$false
                     Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue
@@ -164,7 +173,7 @@ function Install-LabWsusConsole {
             if (-not (Test-Path -Path $gac)) {
                 throw 'The WSUS administration API (Microsoft.UpdateServices.Administration) is missing after the install'
             }
-            [pscustomobject]@{ Status = 'Installed' }
+            [pscustomobject]@{ Status = $status }
         } -ArgumentList $clientInstall.ToString(), $TimeoutMinutes
     Write-LabLog "[$ComputerName] WSUS console: $($result.Status)" -Status OK
     return $result
