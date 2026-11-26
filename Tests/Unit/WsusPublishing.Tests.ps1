@@ -44,6 +44,27 @@ Describe 'Install-LabWsusConsole' {
     }
 }
 
+Describe 'Install-LabWsusConsole client install' {
+    BeforeAll {
+        $script:consoleSource = Get-Content -Raw (Join-Path $script:toolsRoot 'Install-LabWsusConsole.ps1')
+    }
+
+    It 'takes the WSUS source values and the policy cache away and puts both back after a failure' {
+        $script:consoleSource | Should -Match 'UpdatePolicy\\GPCache'
+        $script:consoleSource | Should -Match "'WUServer', 'WUStatusServer'"
+        $script:consoleSource | Should -Match '(?s)finally\s*\{\s*Restore-UpdatePolicy'
+    }
+
+    It 'does not redirect the error stream of reg import' {
+        $script:consoleSource | Should -Not -Match 'reg\.exe import [^\r\n]*2>&1'
+    }
+
+    It 'installs on a client in a task as SYSTEM and removes the task' {
+        $script:consoleSource | Should -Match "-User 'SYSTEM'"
+        $script:consoleSource | Should -Match 'Unregister-ScheduledTask'
+    }
+}
+
 Describe 'Set-LabWsusPublishing' {
     BeforeEach { Mock Write-LabLog { } }
 

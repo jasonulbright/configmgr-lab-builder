@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- The WSUS console install on a Windows 11 client that uses the lab WSUS
+  ended with 0x80d02002. Since Windows 11 22H2 the client asks WSUS for
+  Features on Demand, and a software update point holds no files for them.
+  `Install-LabWsusConsole` now removes the WSUS source values and the
+  Windows Update policy cache for the length of the install, restores both,
+  and runs the client install as SYSTEM in a scheduled task.
+
 ### Added
 
 - **WSUS publishing prep, on by default.** Phase `10-Tools` now installs the
